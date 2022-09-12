@@ -101,13 +101,17 @@ impl CPU {
         opcode
     }
 
+    // Sets the Z (zero) and N (negative) flags on the CPU status based on the
+    // given result.
     fn update_zero_and_negative_flags(&mut self, result: u8) {
+        // Zero flag should be set if the result is 0.
         if result == 0 {
             self.status = self.status | 0b00000010;
         } else {
             self.status = self.status & 0b11111101;
         }
 
+        // Negative flag should be set if bit 7 of the result is set.
         if result & 0b1000_0000 != 0 {
             self.status = self.status | 0b10000000;
         } else {
