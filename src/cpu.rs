@@ -1,3 +1,59 @@
+#[derive(Debug)]
+#[allow(non_camel_case_types)]
+// Represents the different types of addressing mode supported by the CPU.
+pub enum AddressingMode {
+    // Allows the programmer to directly specify an 8 bit constant within the
+    // instruction.
+    Immediate,
+
+    // An instruction using zero page addressing mode has only an 8 bit address
+    // operand. This limits it to addressing only the first 256 bytes of memory
+    // (e.g. $0000 to $00FF) where the most significant byte of the address is
+    // always zero. In zero page mode only the least significant byte of the
+    // address is held in the instruction making it shorter by one byte
+    // (important for space saving) and one less memory fetch during execution
+    // (important for speed).
+    ZeroPage,
+
+    // The address to be accessed by an instruction using indexed zero page
+    // addressing is calculated by taking the 8 bit zero page address from the
+    // instruction and adding the current value of the X register to it.
+    ZeroPageX,
+
+    // The address to be accessed by an instruction using indexed zero page
+    // addressing is calculated by taking the 8 bit zero page address from the
+    // instruction and adding the current value of the Y register to it. This
+    // mode can only be used with the LDX and STX instructions.
+    ZeroPageY,
+
+    // Instructions using absolute addressing contain a full 16 bit address to
+    // identify the target location.
+    Absolute,
+
+    // The address to be accessed by an instruction using X register indexed
+    // absolute addressing is computed by taking the 16 bit address from the
+    // instruction and added the contents of the X register.
+    AbsoluteX,
+
+    // The Y register indexed absolute addressing mode is the same as the
+    // previous mode only with the contents of the Y register added to the 16
+    // bit address from the instruction.
+    AbsoluteY,
+
+    // Indexed indirect addressing is normally used in conjunction with a table
+    // of address held on zero page. The address of the table is taken from the
+    // instruction and the X register added to it (with zero page wrap around)
+    // to give the location of the least significant byte of the target address.
+    IndirectX,
+
+    // Indirect indirect addressing is the most common indirection mode used on
+    // the 6502. In instruction contains the zero page location of the least
+    // significant byte of 16 bit address. The Y register is dynamically added
+    // to this value to generated the actual target address for operation.
+    IndirectY,
+}
+
+// Represents the NES CPU.
 pub struct CPU {
     // Accumulator, a special register for storing results of arithmetic and
     // logical operations.
@@ -5,6 +61,9 @@ pub struct CPU {
 
     // X index register.
     pub x: u8,
+
+    // Y index register.
+    pub y: u8,
 
     // Processor status register.
     //
@@ -34,6 +93,7 @@ impl CPU {
         CPU {
             a: 0,
             x: 0,
+            y: 0,
             status: 0,
             pc: 0,
             memory: [0; 0xFFFF],
@@ -70,14 +130,116 @@ impl CPU {
     // Runs the program loaded into memory.
     pub fn run(&mut self) {
         loop {
-            let opcode = self.immediate_byte();
+            let opcode = self.mem_read_byte(self.pc);
+            self.pc += 1;
 
             match opcode {
                 0x00 => return,
-                0xA9 => self.lda(),
+
+                // LDA.
+                0xA9 => {
+                    self.lda(&AddressingMode::Immediate);
+                    self.pc += 1;
+                },
+                0xA5 => {
+                    self.lda(&AddressingMode::ZeroPage);
+                    self.pc += 1;
+                }
+                0xAD => {
+                    self.lda(&AddressingMode::Absolute);
+                    self.pc += 2;
+                }
+
+                // STA.
+                0x85 => {
+                    self.sta(&AddressingMode::ZeroPage);
+                    self.pc += 1;
+                },
+                0x95 => {
+                    self.sta(&AddressingMode::ZeroPageX);
+                    self.pc += 1;
+                },
+                0x8D => {
+                    self.sta(&AddressingMode::Absolute);
+                    self.pc += 2;
+                },
+                0x9D => {
+                    self.sta(&AddressingMode::AbsoluteX);
+                    self.pc += 2;
+                },
+                0x99 => {
+                    self.sta(&AddressingMode::AbsoluteY);
+                    self.pc += 2;
+                },
+                0x81 => {
+                    self.sta(&AddressingMode::IndirectX);
+                    self.pc += 1;
+                },
+                0x91 => {
+                    self.sta(&AddressingMode::IndirectY);
+                    self.pc += 1;
+                },
+
+                // TAX.
                 0xAA => self.tax(),
+
+                // INX.
                 0xE8 => self.inx(),
+
                 _ => todo!(""),
+            }
+        }
+    }
+
+    // Returns the address of the operand for a given addressing mode.
+    fn get_operand_address(&self, mode: &AddressingMode) -> u16 {
+        match mode {
+            AddressingMode::Immediate => self.pc,
+
+            AddressingMode::ZeroPage => self.mem_read_byte(self.pc) as u16,
+
+            AddressingMode::Absolute => self.mem_read_word(self.pc),
+
+            AddressingMode::ZeroPageX => {
+                let pos = self.mem_read_byte(self.pc);
+                let addr = pos.wrapping_add(self.x) as u16;
+                addr
+            }
+            AddressingMode::ZeroPageY => {
+                let pos = self.mem_read_byte(self.pc);
+                let addr = pos.wrapping_add(self.y) as u16;
+                addr
+            }
+
+            AddressingMode::AbsoluteX => {
+                let base = self.mem_read_word(self.pc);
+                let addr = base.wrapping_add(self.x as u16);
+                addr
+            }
+            AddressingMode::AbsoluteY => {
+                let base = self.mem_read_word(self.pc);
+                let addr = base.wrapping_add(self.y as u16);
+                addr
+            }
+
+            AddressingMode::IndirectX => {
+                let base = self.mem_read_byte(self.pc);
+
+                let ptr: u8 = (base as u8).wrapping_add(self.x);
+                let lo = self.mem_read_byte(ptr as u16);
+                let hi = self.mem_read_byte(ptr.wrapping_add(1) as u16);
+
+                u16::from_le_bytes([hi, lo])
+            }
+            AddressingMode::IndirectY => {
+                let base = self.mem_read_byte(self.pc);
+
+                let lo = self.mem_read_byte(base as u16);
+                let hi = self.mem_read_byte((base as u8).wrapping_add(1) as u16);
+
+                let deref_base = u16::from_le_bytes([hi, lo]);
+                let deref = deref_base.wrapping_add(self.y as u16);
+                deref
             }
         }
     }
@@ -86,8 +248,10 @@ impl CPU {
     //
     // Loads a byte of memory into the accumulator setting the zero and
     // negative flags as appropriate.
-    fn lda(&mut self) {
-        let param = self.immediate_byte();
+    fn lda(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+
+        let param = self.mem_read_byte(addr);
         self.a = param;
 
         self.update_zero_and_negative_flags(self.a);
@@ -111,6 +275,12 @@ impl CPU {
         self.update_zero_and_negative_flags(self.x);
     }
 
+    // Stores the contents of the accumulator into memory.
+    fn sta(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_write_byte(addr, self.a)
+    }
+
     // Returns the byte at the given address in memory.
     fn mem_read_byte(&self, addr: u16) -> u8 {
         self.memory[addr as usize]
@@ -122,7 +292,7 @@ impl CPU {
     }
 
     // Returns a word from memory, merged from the two bytes at pos and pos + 1.
-    fn mem_read_word(&mut self, pos: u16) -> u16 {
+    fn mem_read_word(&self, pos: u16) -> u16 {
         let lo = self.mem_read_byte(pos);
         let hi = self.mem_read_byte(pos + 1);
 
@@ -135,16 +305,6 @@ impl CPU {
 
         self.mem_write_byte(pos, bytes[1]);
         self.mem_write_byte(pos + 1, bytes[0]);
-    }
-
-    // Returns the next byte from memory indicated by the program counter.
-    //
-    // The program counter is incremented by one after the read.
-    fn immediate_byte(&mut self) -> u8 {
-        let opcode = self.mem_read_byte(self.pc);
-        self.pc += 1;
-
-        opcode
     }
 
     // Sets the Z (zero) and N (negative) flags on the CPU status based on the
@@ -186,6 +346,25 @@ mod test {
         cpu.load_and_run(vec![0xa9, 0x00, 0x00]);
 
         assert_eq!(cpu.status & 0b00000010, 0b10);
+    }
+
+    #[test]
+    fn test_lda_from_memory() {
+        let mut cpu = CPU::new();
+        cpu.mem_write_byte(0x10, 0x55);
+
+        cpu.load_and_run(vec![0xa5, 0x10, 0x00]);
+
+        assert_eq!(cpu.a, 0x55);
+    }
+
+    #[test]
+    fn test_sta() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa9, 0x05, 0x85, 0x20, 0x00]);
+
+        assert_eq!(cpu.a, 0x05);
+        assert_eq!(cpu.mem_read_byte(0x20), 0x05)
     }
 
     #[test]
