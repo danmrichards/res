@@ -1,3 +1,6 @@
+use crate::opcodes;
+use std::collections::HashMap;
+
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
 // Represents the different types of addressing mode supported by the CPU.
@@ -51,6 +54,33 @@ pub enum AddressingMode {
     // significant byte of 16 bit address. The Y register is dynamically added
     // to this value to generated the actual target address for operation.
     IndirectY,
+
+    // Used when an opcode takes no operand.
+    Implied,
+}
+
+trait Memory {
+    // Returns the byte at the given address in memory.
+    fn mem_read_byte(&self, addr: u16) -> u8;
+
+    // Writes the data at the given address in memory.
+    fn mem_write_byte(&mut self, addr: u16, data: u8);
+
+    // Returns a word from memory, merged from the two bytes at pos and pos + 1.
+    fn mem_read_word(&self, pos: u16) -> u16 {
+        let lo = self.mem_read_byte(pos);
+        let hi = self.mem_read_byte(pos + 1);
+
+        u16::from_le_bytes([hi, lo])
+    }
+
+    // Writes two bytes to memory, split from the data word, as pos and pos + 1.
+    fn mem_write_word(&mut self, pos: u16, data: u16) {
+        let bytes = data.to_le_bytes();
+
+        self.mem_write_byte(pos, bytes[1]);
+        self.mem_write_byte(pos + 1, bytes[0]);
+    }
 }
 
 // Represents the NES CPU.
@@ -85,6 +115,18 @@ pub struct CPU {
 
     // Memory stores the data available to the CPU.
     memory: [u8; 0xFFFF],
+}
+
+impl Memory for CPU {
+    // Returns the byte at the given address in memory.
+    fn mem_read_byte(&self, addr: u16) -> u8 {
+        self.memory[addr as usize]
+    }
+
+    // Writes the data at the given address in memory.
+    fn mem_write_byte(&mut self, addr: u16, data: u8) {
+        self.memory[addr as usize] = data
+    }
 }
 
 impl CPU {
@@ -129,65 +171,34 @@ impl CPU {
 
     // Runs the program loaded into memory.
     pub fn run(&mut self) {
+        let ref opcodes: HashMap<u8, &'static opcodes::OpCode> = *opcodes::OPCODES;
+
         loop {
-            let opcode = self.mem_read_byte(self.pc);
+            // Get the opcode at the program counter.
+            let code = self.mem_read_byte(self.pc);
             self.pc += 1;
 
-            match opcode {
+            // Lookup the full opcode details.
+            let opcode = opcodes
+                .get(&code)
+                .expect(&format!("OpCode {:x} is not recognized", code));
+
+            match opcode.code {
                 0x00 => return,
-
-                // LDA.
-                0xA9 => {
-                    self.lda(&AddressingMode::Immediate);
-                    self.pc += 1;
-                },
-                0xA5 => {
-                    self.lda(&AddressingMode::ZeroPage);
-                    self.pc += 1;
+                0xA9 | 0xA5 | 0xB5 | 0xAD | 0xBD | 0xB9 | 0xA1 | 0xB1 => {
+                    self.lda(&opcode.mode);
                 }
-                0xAD => {
-                    self.lda(&AddressingMode::Absolute);
-                    self.pc += 2;
+                0x85 | 0x95 | 0x8D | 0x9D | 0x99 | 0x81 | 0x91 => {
+                    self.sta(&opcode.mode);
                 }
-
-                // STA.
-                0x85 => {
-                    self.sta(&AddressingMode::ZeroPage);
-                    self.pc += 1;
-                },
-                0x95 => {
-                    self.sta(&AddressingMode::ZeroPageX);
-                    self.pc += 1;
-                },
-                0x8D => {
-                    self.sta(&AddressingMode::Absolute);
-                    self.pc += 2;
-                },
-                0x9D => {
-                    self.sta(&AddressingMode::AbsoluteX);
-                    self.pc += 2;
-                },
-                0x99 => {
-                    self.sta(&AddressingMode::AbsoluteY);
-                    self.pc += 2;
-                },
-                0x81 => {
-                    self.sta(&AddressingMode::IndirectX);
-                    self.pc += 1;
-                },
-                0x91 => {
-                    self.sta(&AddressingMode::IndirectY);
-                    self.pc += 1;
-                },
-
-                // TAX.
                 0xAA => self.tax(),
-
-                // INX.
                 0xE8 => self.inx(),
-
                 _ => todo!(""),
             }
+
+            // Program counter needs to be incremented by the number of bytes
+            // used in the opcode.
+            self.pc += (opcode.len - 1) as u16;
         }
     }
 
@@ -241,6 +252,10 @@ impl CPU {
                 let deref = deref_base.wrapping_add(self.y as u16);
                 deref
             }
+
+            AddressingMode::Implied => {
+                panic!("mode {:?} is not supported", mode);
+            }
         }
     }
 
@@ -279,32 +294,6 @@ impl CPU {
     fn sta(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.mem_write_byte(addr, self.a)
-    }
-
-    // Returns the byte at the given address in memory.
-    fn mem_read_byte(&self, addr: u16) -> u8 {
-        self.memory[addr as usize]
-    }
-
-    // Writes the data at the given address in memory.
-    fn mem_write_byte(&mut self, addr: u16, data: u8) {
-        self.memory[addr as usize] = data
-    }
-
-    // Returns a word from memory, merged from the two bytes at pos and pos + 1.
-    fn mem_read_word(&self, pos: u16) -> u16 {
-        let lo = self.mem_read_byte(pos);
-        let hi = self.mem_read_byte(pos + 1);
-
-        u16::from_le_bytes([hi, lo])
-    }
-
-    // Writes two bytes to memory, split from the data word, as pos and pos + 1.
-    fn mem_write_word(&mut self, pos: u16, data: u16) {
-        let bytes = data.to_le_bytes();
-
-        self.mem_write_byte(pos, bytes[1]);
-        self.mem_write_byte(pos + 1, bytes[0]);
     }
 
     // Sets the Z (zero) and N (negative) flags on the CPU status based on the
