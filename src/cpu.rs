@@ -1,4 +1,4 @@
-use crate::opcodes;
+use crate::instructions;
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -171,7 +171,7 @@ impl CPU {
 
     // Runs the program loaded into memory.
     pub fn run(&mut self) {
-        let ref opcodes: HashMap<u8, &'static opcodes::OpCode> = *opcodes::OPCODES;
+        let ref opcodes: HashMap<u8, &'static instructions::OpCode> = *instructions::OPCODES;
 
         loop {
             // Get the opcode at the program counter.
