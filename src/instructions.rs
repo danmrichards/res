@@ -26,7 +26,6 @@ impl OpCode {
 
 lazy_static! {
     static ref CPU_OPCODES: Vec<OpCode> = vec![
-        OpCode::new(0x00, "BRK", 1, 7, AddressingMode::Implied),
         OpCode::new(0x69, "ADC", 2, 2, AddressingMode::Immediate),
         OpCode::new(0x65, "ADC", 2, 3, AddressingMode::ZeroPage),
         OpCode::new(0x75, "ADC", 2, 4, AddressingMode::ZeroPageX),
@@ -53,6 +52,13 @@ lazy_static! {
         OpCode::new(0xF0, "BEQ", 2, 2, AddressingMode::Implied),
         OpCode::new(0x24, "BIT", 2, 3, AddressingMode::ZeroPage),
         OpCode::new(0x2C, "BIT", 2, 4, AddressingMode::Absolute),
+        OpCode::new(0x30, "BMI", 2, 2, AddressingMode::Implied),
+        OpCode::new(0xD0, "BNE", 2, 2, AddressingMode::Implied),
+        OpCode::new(0x10, "BPL", 2, 2, AddressingMode::Implied),
+        OpCode::new(0x00, "BRK", 1, 7, AddressingMode::Implied),
+        OpCode::new(0x50, "BVC", 2, 2, AddressingMode::Implied),
+        OpCode::new(0x70, "BVS", 2, 2, AddressingMode::Implied),
+        OpCode::new(0x18, "CLC", 1, 2, AddressingMode::Implied),
         OpCode::new(0xE8, "INX", 1, 2, AddressingMode::Implied),
         OpCode::new(0xA9, "LDA", 2, 2, AddressingMode::Immediate),
         OpCode::new(0xA5, "LDA", 2, 3, AddressingMode::ZeroPage),

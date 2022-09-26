@@ -159,9 +159,7 @@ impl CPU {
     fn branch(&mut self, condition: bool) {
         if condition {
             let jump: i8 = self.mem_read_byte(self.pc) as i8;
-            let jump_addr = self.pc
-                .wrapping_add(1)
-                .wrapping_add(jump as u16);
+            let jump_addr = self.pc.wrapping_add(1).wrapping_add(jump as u16);
 
             self.pc = jump_addr;
         }
@@ -219,7 +217,7 @@ impl CPU {
                 0x90 => self.bcc(),
 
                 // BCS.
-                0xB0 => self.bcc(),
+                0xB0 => self.bcs(),
 
                 // BEQ.
                 0xF0 => self.beq(),
@@ -228,6 +226,24 @@ impl CPU {
                 0x24 | 0x2C => {
                     self.bit(&opcode.mode);
                 }
+
+                // BMI.
+                0x30 => self.bmi(),
+
+                // BNE.
+                0xD0 => self.bne(),
+
+                // BPL.
+                0x10 => self.bpl(),
+
+                // BVC.
+                0x50 => self.bvc(),
+
+                // BVS.
+                0x70 => self.bvs(),
+
+                // CLC.
+                0x17 => self.clc(),
 
                 // LDA.
                 0xA9 | 0xA5 | 0xB5 | 0xAD | 0xBD | 0xB9 | 0xA1 | 0xB1 => {
@@ -386,16 +402,7 @@ impl CPU {
     // program counter to cause a branch to a new location.
     fn bcc(&mut self) {
         let carry_clear = self.status & 0b00000001 == 0;
-        self.branch(carry_clear)
-    }
-
-    // BEQ: Branch if Equal.
-    //
-    // If the zero flag is set then add the relative displacement to the program
-    // counter to cause a branch to a new location.
-    fn beq(&mut self) {
-        let zero_set = self.status & 0b00000010 != 0;
-        self.branch(zero_set)
+        self.branch(carry_clear);
     }
 
     // BCS: Branch if Carry Set.
@@ -404,7 +411,16 @@ impl CPU {
     // program counter to cause a branch to a new location.
     fn bcs(&mut self) {
         let carry_set = self.status & 0b00000001 != 0;
-        self.branch(carry_set)
+        self.branch(carry_set);
+    }
+
+    // BEQ: Branch if Equal.
+    //
+    // If the zero flag is set then add the relative displacement to the program
+    // counter to cause a branch to a new location.
+    fn beq(&mut self) {
+        let zero_set = self.status & 0b00000010 != 0;
+        self.branch(zero_set);
     }
 
     // BIT: Bit Test.
@@ -419,25 +435,77 @@ impl CPU {
         let param = self.mem_read_byte(addr);
 
         // Update zero flag.
-        if param&self.a == 0 {
+        if param & self.a == 0 {
             self.status = self.status | 0b00000010;
         } else {
             self.status = self.status & 0b11111101;
         }
 
         // Copy to negative flag.
-        if param&0b1000000 != 0 {
+        if param & 0b1000000 != 0 {
             self.status = self.status | 0b10000000;
         } else {
             self.status = self.status & 0b01111111;
         }
 
         // Copy to overflow flag.
-        if param&0b0100000 != 0 {
+        if param & 0b0100000 != 0 {
             self.status = self.status | 0b01000000;
         } else {
             self.status = self.status & 0b10111111;
         }
+    }
+
+    // BMI: Branch if Minus.
+    //
+    // If the negative flag is set then add the relative displacement to the
+    // program counter to cause a branch to a new location.
+    fn bmi(&mut self) {
+        let negative_set = self.status & 0b10000000 != 0;
+        self.branch(negative_set);
+    }
+
+    // BNE: Branch if Not Equal.
+    //
+    // If the zero flag is clear then add the relative displacement to the
+    // program counter to cause a branch to a new location.
+    fn bne(&mut self) {
+        let zero_clear = self.status & 0b00000010 == 0;
+        self.branch(zero_clear);
+    }
+
+    // BPL: Branch if Positive
+    //
+    // If the negative flag is clear then add the relative displacement to the
+    // program counter to cause a branch to a new location.
+    fn bpl(&mut self) {
+        let negative_clear = self.status & 0b10000000 == 0;
+        self.branch(negative_clear);
+    }
+
+    // BVC: Branch if Overflow Clear
+    //
+    // If the overflow flag is clear then add the relative displacement to the
+    // program counter to cause a branch to a new location.
+    fn bvc(&mut self) {
+        let overflow_clear = self.status & 0b01000000 == 0;
+        self.branch(overflow_clear);
+    }
+
+    // BVS: Branch if Overflow Set
+    //
+    // If the overflow flag is set then add the relative displacement to the
+    // program counter to cause a branch to a new location.
+    fn bvs(&mut self) {
+        let overflow_set = self.status & 0b01000000 != 0;
+        self.branch(overflow_set);
+    }
+
+    // CLC: Clear Carry Flag.
+    //
+    // Set the carry flag to zero.
+    fn clc(&mut self) {
+        self.unset_carry_flag();
     }
 
     // LDA: Load Accumulator.
@@ -485,7 +553,7 @@ impl CPU {
 
         // Set the carry bit if there is an overflow.
         if sum > 0xFF {
-           self.set_carry_flag();
+            self.set_carry_flag();
         } else {
             self.unset_carry_flag();
         }
