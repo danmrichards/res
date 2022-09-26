@@ -102,13 +102,13 @@ pub struct CPU {
     // N V _ B D I Z C
     // | |   | | | | |
     // | |   | | | | +- Carry
-    // | |   | | | +-- Zero
-    // | |   | | +--- Interrupt disable
-    // | |   | +---- Decimal
-    // | |   +------ Break flag
+    // | |   | | | +--- Zero
+    // | |   | | +----- Interrupt disable
+    // | |   | +------- Decimal
+    // | |   +--------- Break flag
     // | |
-    // | +-------- Overflow
-    // +--------- Negative
+    // | +------------- Overflow
+    // +--------------- Negative
     pub status: u8,
 
     // Program counter, stores the address of the instruction being executed.
