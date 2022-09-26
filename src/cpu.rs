@@ -186,19 +186,37 @@ impl CPU {
 
             match opcode.code {
                 0x00 => return,
+
+                // ADC.
                 0x69 | 0x65 | 0x75 | 0x6D | 0x7D | 0x79 | 0x61 | 0x11 => {
                     self.adc(&opcode.mode);
                 }
+
+                // AND.
                 0x29 | 0x25 | 0x35 | 0x2D | 0x3D | 0x39 | 0x21 | 0x31 => {
                     self.and(&opcode.mode);
                 }
+
+                // ASL.
+                0x0A => self.asl_implied(),
+                0x06 | 0x16 | 0x0E | 0x1E => {
+                    self.asl(&opcode.mode);
+                }
+
+                // LDA.
                 0xA9 | 0xA5 | 0xB5 | 0xAD | 0xBD | 0xB9 | 0xA1 | 0xB1 => {
                     self.lda(&opcode.mode);
                 }
+
+                // STA.
                 0x85 | 0x95 | 0x8D | 0x9D | 0x99 | 0x81 | 0x91 => {
                     self.sta(&opcode.mode);
                 }
+
+                // TAX.
                 0xAA => self.tax(),
+
+                // INX.
                 0xE8 => self.inx(),
                 _ => todo!(""),
             }
@@ -291,6 +309,51 @@ impl CPU {
         self.set_register_a(self.a & param);
     }
 
+    // ASL: Arithmetic Shift Left
+    //
+    // This operation shifts all the bits of the accumulator contents one bit
+    // left. Bit 0 is set to 0 and bit 7 is placed in the carry flag. The effect
+    // of this operation is to multiply the memory contents by 2 (ignoring 2's
+    // complement considerations), setting the carry if the result will not fit
+    // in 8 bits.
+    fn asl_implied(&mut self) {
+        let mut data = self.a;
+
+        if data >> 7 == 1 {
+            self.set_carry_flag();
+        } else {
+            self.unset_carry_flag();
+        }
+
+        data = data << 1;
+
+        self.set_register_a(data)
+    }
+
+    // ASL: Arithmetic Shift Left
+    //
+    // This operation shifts all the bits of the memory contents one bit left.
+    // Bit 0 is set to 0 and bit 7 is placed in the carry flag. The effect of
+    // this operation is to multiply the memory contents by 2 (ignoring 2's
+    // complement considerations), setting the carry if the result will not fit
+    // in 8 bits.
+    fn asl(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+
+        let mut data = self.mem_read_byte(addr);
+
+        if data >> 7 == 1 {
+            self.set_carry_flag();
+        } else {
+            self.unset_carry_flag();
+        }
+
+        data = data << 1;
+        self.mem_write_byte(addr, data);
+
+        self.update_zero_and_negative_flags(data);
+    }
+
     // LDA: Load Accumulator.
     //
     // Loads a byte of memory into the accumulator setting the zero and
@@ -330,15 +393,15 @@ impl CPU {
 
     // Adds data to the accumulator and sets the CPU status accordingly.
     fn add_to_accumulator(&mut self, data: u8) {
-        let carry = self.status&0x01;
+        let carry = self.status & 0x01;
 
         let sum = self.a as u16 + data as u16 + carry as u16;
 
         // Set the carry bit if there is an overflow.
         if sum > 0xFF {
-            self.status = self.status | 0b00000001;
+           self.set_carry_flag();
         } else {
-            self.status = self.status & 0b11111110
+            self.unset_carry_flag();
         }
 
         let result = sum as u8;
@@ -374,6 +437,16 @@ impl CPU {
         } else {
             self.status = self.status & 0b01111111;
         }
+    }
+
+    // Sets the carry flag on the CPU status.
+    fn set_carry_flag(&mut self) {
+        self.status = self.status | 0b00000001;
+    }
+
+    // Unsets the carry flag on the CPU status.
+    fn unset_carry_flag(&mut self) {
+        self.status = self.status & 0b11111110;
     }
 }
 
