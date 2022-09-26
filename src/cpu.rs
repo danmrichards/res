@@ -189,6 +189,9 @@ impl CPU {
                 0x69 | 0x65 | 0x75 | 0x6D | 0x7D | 0x79 | 0x61 | 0x11 => {
                     self.adc(&opcode.mode);
                 }
+                0x29 | 0x25 | 0x35 | 0x2D | 0x3D | 0x39 | 0x21 | 0x31 => {
+                    self.and(&opcode.mode);
+                }
                 0xA9 | 0xA5 | 0xB5 | 0xAD | 0xBD | 0xB9 | 0xA1 | 0xB1 => {
                     self.lda(&opcode.mode);
                 }
@@ -274,6 +277,18 @@ impl CPU {
         let param = self.mem_read_byte(addr);
 
         self.add_to_accumulator(param);
+    }
+
+    // AND - Logical AND.
+    //
+    // A logical AND is performed, bit by bit, on the accumulator contents using
+    // the contents of a byte of memory.
+    fn and(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+
+        let param = self.mem_read_byte(addr);
+
+        self.set_register_a(self.a & param);
     }
 
     // LDA: Load Accumulator.
