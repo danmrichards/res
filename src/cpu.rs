@@ -155,6 +155,18 @@ impl CPU {
         self.pc = self.mem_read_word(0xFFFC);
     }
 
+    // Jumps the program to a point in memory if a given condition is true.
+    fn branch(&mut self, condition: bool) {
+        if condition {
+            let jump: i8 = self.mem_read_byte(self.pc) as i8;
+            let jump_addr = self.pc
+                .wrapping_add(1)
+                .wrapping_add(jump as u16);
+
+            self.pc = jump_addr;
+        }
+    }
+
     // Loads the program into memory.
     //
     // Program ROM starts at 0x8000 for the NES.
@@ -201,6 +213,20 @@ impl CPU {
                 0x0A => self.asl_implied(),
                 0x06 | 0x16 | 0x0E | 0x1E => {
                     self.asl(&opcode.mode);
+                }
+
+                // BCC.
+                0x90 => self.bcc(),
+
+                // BCS.
+                0xB0 => self.bcc(),
+
+                // BEQ.
+                0xF0 => self.beq(),
+
+                // BIT.
+                0x24 | 0x2C => {
+                    self.bit(&opcode.mode);
                 }
 
                 // LDA.
@@ -352,6 +378,66 @@ impl CPU {
         self.mem_write_byte(addr, data);
 
         self.update_zero_and_negative_flags(data);
+    }
+
+    // BCC: Branch if Carry Clear.
+    //
+    // If the carry flag is clear then add the relative displacement to the
+    // program counter to cause a branch to a new location.
+    fn bcc(&mut self) {
+        let carry_clear = self.status & 0b00000001 == 0;
+        self.branch(carry_clear)
+    }
+
+    // BEQ: Branch if Equal.
+    //
+    // If the zero flag is set then add the relative displacement to the program
+    // counter to cause a branch to a new location.
+    fn beq(&mut self) {
+        let zero_set = self.status & 0b00000010 != 0;
+        self.branch(zero_set)
+    }
+
+    // BCS: Branch if Carry Set.
+    //
+    // If the carry flag is set then add the relative displacement to the
+    // program counter to cause a branch to a new location.
+    fn bcs(&mut self) {
+        let carry_set = self.status & 0b00000001 != 0;
+        self.branch(carry_set)
+    }
+
+    // BIT: Bit Test.
+    //
+    // This instructions is used to test if one or more bits are set in a target
+    // memory location. The mask pattern in A is ANDed with the value in memory
+    // to set or clear the zero flag, but the result is not kept. Bits 7 and 6
+    // of the value from memory are copied into the N and V flags.
+    fn bit(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+
+        let param = self.mem_read_byte(addr);
+
+        // Update zero flag.
+        if param&self.a == 0 {
+            self.status = self.status | 0b00000010;
+        } else {
+            self.status = self.status & 0b11111101;
+        }
+
+        // Copy to negative flag.
+        if param&0b1000000 != 0 {
+            self.status = self.status | 0b10000000;
+        } else {
+            self.status = self.status & 0b01111111;
+        }
+
+        // Copy to overflow flag.
+        if param&0b0100000 != 0 {
+            self.status = self.status | 0b01000000;
+        } else {
+            self.status = self.status & 0b10111111;
+        }
     }
 
     // LDA: Load Accumulator.
