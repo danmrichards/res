@@ -99,13 +99,14 @@ pub struct CPU {
     //
     // 7     bit     0
     // ------- -------
-    // N V s s D I Z C
-    // | | | | | | | |
-    // | | | | | | | +- Carry
-    // | | | | | | +-- Zero
-    // | | | | | +--- Interrupt Disable
-    // | | | | +---- Decimal
-    // | | + +------ No CPU effect, see: the B flag
+    // N V _ B D I Z C
+    // | |   | | | | |
+    // | |   | | | | +- Carry
+    // | |   | | | +-- Zero
+    // | |   | | +--- Interrupt disable
+    // | |   | +---- Decimal
+    // | |   +------ Break flag
+    // | |
     // | +-------- Overflow
     // +--------- Negative
     pub status: u8,
@@ -185,6 +186,9 @@ impl CPU {
 
             match opcode.code {
                 0x00 => return,
+                0x69 | 0x65 | 0x75 | 0x6D | 0x7D | 0x79 | 0x61 | 0x11 => {
+                    self.adc(&opcode.mode);
+                }
                 0xA9 | 0xA5 | 0xB5 | 0xAD | 0xBD | 0xB9 | 0xA1 | 0xB1 => {
                     self.lda(&opcode.mode);
                 }
@@ -259,6 +263,19 @@ impl CPU {
         }
     }
 
+    // ADC: Add with carry.
+    //
+    // This instruction adds the contents of a memory location to the
+    // accumulator together with the carry bit. If overflow occurs the carry bit
+    // is set, this enables multiple byte addition to be performed.
+    fn adc(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+
+        let param = self.mem_read_byte(addr);
+
+        self.add_to_accumulator(param);
+    }
+
     // LDA: Load Accumulator.
     //
     // Loads a byte of memory into the accumulator setting the zero and
@@ -296,6 +313,36 @@ impl CPU {
         self.mem_write_byte(addr, self.a)
     }
 
+    // Adds data to the accumulator and sets the CPU status accordingly.
+    fn add_to_accumulator(&mut self, data: u8) {
+        let carry = self.status&0x01;
+
+        let sum = self.a as u16 + data as u16 + carry as u16;
+
+        // Set the carry bit if there is an overflow.
+        if sum > 0xFF {
+            self.status = self.status | 0b00000001;
+        } else {
+            self.status = self.status & 0b11111110
+        }
+
+        let result = sum as u8;
+
+        // Set the overflow flag if the sign bit is incorrect.
+        if (data ^ result) & (result ^ self.a) & 0x80 != 0 {
+            self.status = self.status | 0b01000000;
+        } else {
+            self.status = self.status & 0b10111111;
+        }
+
+        self.set_register_a(result);
+    }
+
+    fn set_register_a(&mut self, value: u8) {
+        self.a = value;
+        self.update_zero_and_negative_flags(self.a);
+    }
+
     // Sets the Z (zero) and N (negative) flags on the CPU status based on the
     // given result.
     fn update_zero_and_negative_flags(&mut self, result: u8) {
@@ -307,7 +354,7 @@ impl CPU {
         }
 
         // Negative flag should be set if bit 7 of the result is set.
-        if result & 0b1000_0000 != 0 {
+        if result & 0b10000000 != 0 {
             self.status = self.status | 0b10000000;
         } else {
             self.status = self.status & 0b01111111;
