@@ -1,5 +1,6 @@
 use crate::instructions;
 use std::collections::HashMap;
+use std::ops::Add;
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
@@ -253,6 +254,21 @@ impl CPU {
 
                 // CLV.
                 0xB8 => self.clv(),
+
+                // CMP.
+                0xC9 | 0xC5 | 0xD5 | 0xCD | 0xDD | 0xD9 | 0xC1 | 0xD1 => {
+                    self.cmp(&opcode.mode);
+                }
+
+                // CMPX.
+                0xE0 | 0xE4 | 0xEC => {
+                    self.cmpx(&opcode.mode);
+                }
+
+                // CMPY.
+                0xC0 | 0xC4 | 0xCC => {
+                    self.cmpy(&opcode.mode);
+                }
 
                 // LDA.
                 0xA9 | 0xA5 | 0xB5 | 0xAD | 0xBD | 0xB9 | 0xA1 | 0xB1 => {
@@ -539,6 +555,30 @@ impl CPU {
         self.status = self.status & 0b10111111;
     }
 
+    // CMP: Compare
+    //
+    // This instruction compares the contents of the accumulator with another
+    // memory held value and sets the zero and carry flags as appropriate.
+    fn cmp(&mut self, mode: &AddressingMode) {
+        self.compare(mode, self.a);
+    }
+
+    // CMPX: Compare X Register
+    //
+    // This instruction compares the contents of the X register with another
+    // memory held value and sets the zero and carry flags as appropriate.
+    fn cmpx(&mut self, mode: &AddressingMode) {
+        self.compare(mode, self.x);
+    }
+
+    // CMPY: Compare Y Register
+    //
+    // This instruction compares the contents of the Y register with another
+    // memory held value and sets the zero and carry flags as appropriate.
+    fn cmpy(&mut self, mode: &AddressingMode) {
+        self.compare(mode, self.y);
+    }
+
     // LDA: Load Accumulator.
     //
     // Loads a byte of memory into the accumulator setting the zero and
@@ -604,6 +644,20 @@ impl CPU {
     fn set_register_a(&mut self, value: u8) {
         self.a = value;
         self.update_zero_and_negative_flags(self.a);
+    }
+
+    // Compares the given data with an item read from memory, then sets the
+    // appropriate status flags.
+    fn compare(&mut self, mode: &AddressingMode, data: u8) {
+        let addr = self.get_operand_address(mode);
+
+        let param = self.mem_read_byte(addr);
+
+        if data >= param {
+            self.set_carry_flag();
+        }
+
+        self.update_zero_and_negative_flags(data.wrapping_sub(param))
     }
 
     // Sets the Z (zero) and N (negative) flags on the CPU status based on the
