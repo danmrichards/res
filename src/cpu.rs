@@ -297,6 +297,11 @@ impl CPU {
                 // INY.
                 0xC8 => self.iny(),
 
+                // JMP.
+                0x4c | 0x6c => {
+                    self.jmp(&opcode.mode);
+                }
+
                 // LDA.
                 0xA9 | 0xA5 | 0xB5 | 0xAD | 0xBD | 0xB9 | 0xA1 | 0xB1 => {
                     self.lda(&opcode.mode);
@@ -684,6 +689,22 @@ impl CPU {
         self.update_zero_and_negative_flags(self.y);
     }
 
+    // JMP: Jump
+    //
+    // Sets the program counter to the address specified by the operand.
+    fn jmp(&mut self, mode: &AddressingMode) {
+        match mode {
+            // Implied mode has to be handled separately due to a hardware bug
+            // on the real 6502. We need to recreate that bug here for absolute
+            // compatibility!
+            AddressingMode::Implied => self.jump_indirect(),
+
+            _ => {
+                self.pc = self.get_operand_address(mode);
+            }
+        };
+    }
+
     // LDA: Load Accumulator.
     //
     // Loads a byte of memory into the accumulator setting the zero and
@@ -782,6 +803,41 @@ impl CPU {
     // Unsets the carry flag on the CPU status.
     fn unset_carry_flag(&mut self) {
         self.status = self.status & 0b11111110;
+    }
+
+    // Sets the program counter to an indirect address.
+    //
+    // An original 6502 has does not correctly fetch the target address if
+    // the indirect vector falls on a page boundary (e.g. $xxFF where xx is
+    // any value from $00 to $FF). In this case fetches the LSB from $xxFF
+    // as expected but takes the MSB from $xx00.
+    fn jump_indirect(&mut self) {
+        let addr = self.mem_read_word(self.pc);
+
+        let mut jump_addr = self.mem_read_word(addr);
+
+        // Example:
+        //
+        // Assume a memory layout of:
+        //
+        // $3000 = $40
+        // $30FF = $80
+        // $3100 = $50
+        //
+        // Expressed as JMP (address), you would expect JMP ($30FF) would first
+        // fetch the target address from $30FF (low byte) and $3100 (high byte),
+        // then jump to that address ($5080)
+        //
+        // However, 6502 will fetch the high byte from $3000, resulting in a
+        // jump to $4080 instead!
+        if addr & 0x00FF == 0x00FF {
+            let lo = self.mem_read_byte(addr);
+            let hi = self.mem_read_byte(addr & 0xFF00);
+
+            jump_addr = u16::from_le_bytes([hi, lo]);
+        }
+
+        self.pc = jump_addr;
     }
 }
 

@@ -104,6 +104,8 @@ lazy_static! {
         OpCode::new(0xB9, "LDA", 3, 4, AddressingMode::AbsoluteY),
         OpCode::new(0xA1, "LDA", 2, 6, AddressingMode::IndirectX),
         OpCode::new(0xB1, "LDA", 2, 5, AddressingMode::IndirectY),
+        OpCode::new(0x4C, "JMP", 3, 3, AddressingMode::Absolute),
+        OpCode::new(0x6C, "JMP", 3, 5, AddressingMode::Implied),
         OpCode::new(0x85, "STA", 2, 3, AddressingMode::ZeroPage),
         OpCode::new(0x95, "STA", 2, 4, AddressingMode::ZeroPageX),
         OpCode::new(0x8D, "STA", 3, 4, AddressingMode::Absolute),
