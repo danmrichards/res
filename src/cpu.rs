@@ -281,6 +281,22 @@ impl CPU {
                 // DECY.
                 0x88 => self.decy(),
 
+                // EOR.
+                0x49 | 0x45 | 0x55 | 0x4D | 0x5D | 0x59 | 0x41 | 0x51 => {
+                    self.eor(&opcode.mode);
+                }
+
+                // INC.
+                0xE6 | 0xF6 | 0xEE | 0xFE => {
+                    self.inc(&opcode.mode);
+                }
+
+                // INX.
+                0xE8 => self.inx(),
+
+                // INY.
+                0xC8 => self.iny(),
+
                 // LDA.
                 0xA9 | 0xA5 | 0xB5 | 0xAD | 0xBD | 0xB9 | 0xA1 | 0xB1 => {
                     self.lda(&opcode.mode);
@@ -294,8 +310,6 @@ impl CPU {
                 // TAX.
                 0xAA => self.tax(),
 
-                // INX.
-                0xE8 => self.inx(),
                 _ => todo!(""),
             }
 
@@ -625,6 +639,51 @@ impl CPU {
         self.update_zero_and_negative_flags(self.y);
     }
 
+    // EOR: Exclusive OR
+    //
+    // An exclusive OR is performed, bit by bit, on the accumulator contents
+    // using the contents of a byte of memory.
+    fn eor(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+
+        let param = self.mem_read_byte(addr);
+
+        self.set_register_a(self.a ^ param)
+    }
+
+    // INC: Increment Memory
+    //
+    // Adds one to the value held at a specified memory location setting the
+    // zero and negative flags as appropriate.
+    fn inc(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+
+        let param = self.mem_read_byte(addr);
+
+        let result = param.wrapping_add(1);
+        self.mem_write_byte(addr, result);
+
+        self.update_zero_and_negative_flags(result);
+    }
+
+    // INX: Increment X register.
+    //
+    // Adds one to the X register setting the zero and negative flags as
+    // appropriate.
+    fn inx(&mut self) {
+        self.x = self.x.wrapping_add(1);
+        self.update_zero_and_negative_flags(self.x);
+    }
+
+    // INY: Increment Y register.
+    //
+    // Adds one to the Y register setting the zero and negative flags as
+    // appropriate.
+    fn iny(&mut self) {
+        self.y = self.y.wrapping_add(1);
+        self.update_zero_and_negative_flags(self.y);
+    }
+
     // LDA: Load Accumulator.
     //
     // Loads a byte of memory into the accumulator setting the zero and
@@ -644,15 +703,6 @@ impl CPU {
     // sets the zero and negative flags as appropriate.
     fn tax(&mut self) {
         self.x = self.a;
-        self.update_zero_and_negative_flags(self.x);
-    }
-
-    // INX: Increment X register.
-    //
-    // Adds one to the X register setting the zero and negative flags as
-    // appropriate.
-    fn inx(&mut self) {
-        self.x = self.x.wrapping_add(1);
         self.update_zero_and_negative_flags(self.x);
     }
 
