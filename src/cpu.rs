@@ -245,6 +245,15 @@ impl CPU {
                 // CLC.
                 0x17 => self.clc(),
 
+                // CLD.
+                0xD8 => self.cld(),
+
+                // CLI.
+                0x58 => self.cli(),
+
+                // CLV.
+                0xB8 => self.clv(),
+
                 // LDA.
                 0xA9 | 0xA5 | 0xB5 | 0xAD | 0xBD | 0xB9 | 0xA1 | 0xB1 => {
                     self.lda(&opcode.mode);
@@ -506,6 +515,28 @@ impl CPU {
     // Set the carry flag to zero.
     fn clc(&mut self) {
         self.unset_carry_flag();
+    }
+
+    // CLD: Clear Decimal Mode
+    //
+    // Sets the decimal mode flag to zero.
+    fn cld(&mut self) {
+        self.status = self.status & 0b11110111;
+    }
+
+    // CLI: Clear Interrupt Disable
+    //
+    // Clears the interrupt disable flag allowing normal interrupt requests to
+    // be serviced.
+    fn cli(&mut self) {
+        self.status = self.status & 0b11111011;
+    }
+
+    // CLV: Clear Overflow Flag
+    //
+    // Clears the overflow flag.
+    fn clv(&mut self) {
+        self.status = self.status & 0b10111111;
     }
 
     // LDA: Load Accumulator.
