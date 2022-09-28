@@ -270,6 +270,17 @@ impl CPU {
                     self.cmpy(&opcode.mode);
                 }
 
+                // DEC.
+                0xC6 | 0xD6 | 0xCE | 0xDE => {
+                    self.dec(&opcode.mode);
+                }
+
+                // DECX.
+                0xCA => self.decx(),
+
+                // DECY.
+                0x88 => self.decy(),
+
                 // LDA.
                 0xA9 | 0xA5 | 0xB5 | 0xAD | 0xBD | 0xB9 | 0xA1 | 0xB1 => {
                     self.lda(&opcode.mode);
@@ -577,6 +588,41 @@ impl CPU {
     // memory held value and sets the zero and carry flags as appropriate.
     fn cmpy(&mut self, mode: &AddressingMode) {
         self.compare(mode, self.y);
+    }
+
+    // DEC: Decrement Memory.
+    //
+    // Subtracts one from the value held at a specified memory location setting
+    // the zero and negative flags as appropriate.
+    fn dec(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+
+        let param = self.mem_read_byte(addr);
+
+        let result = param.wrapping_sub(1);
+        self.mem_write_byte(addr, result);
+
+        self.update_zero_and_negative_flags(result);
+    }
+
+    // DECX: Decrement X Register.
+    //
+    // Subtracts one from the X register setting the zero and negative flags as
+    // appropriate.
+    fn decx(&mut self) {
+        self.x = self.x.wrapping_sub(1);
+
+        self.update_zero_and_negative_flags(self.x);
+    }
+
+    // DECY: Decrement Y Register.
+    //
+    // Subtracts one from the Y register setting the zero and negative flags as
+    // appropriate.
+    fn decy(&mut self) {
+        self.y = self.y.wrapping_sub(1);
+
+        self.update_zero_and_negative_flags(self.y);
     }
 
     // LDA: Load Accumulator.
