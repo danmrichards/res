@@ -84,6 +84,10 @@ trait Memory {
     }
 }
 
+// Stack is located from $0100-$01FF.
+const STACK: u16 = 0x0100;
+const STACK_RESET: u8 = 0xFD;
+
 // Represents the NES CPU.
 pub struct CPU {
     // Accumulator, a special register for storing results of arithmetic and
@@ -115,6 +119,12 @@ pub struct CPU {
     // Program counter, stores the address of the instruction being executed.
     pub pc: u16,
 
+    // Stack pointer, an 8-bit register which serves as an offset from $0100.
+    // The stack works top-down, so when a byte is pushed on to the stack, the
+    // stack pointer is decremented and when a byte is pulled from the stack,
+    // the stack pointer is incremented
+    pub sp: u8,
+
     // Memory stores the data available to the CPU.
     memory: [u8; 0xFFFF],
 }
@@ -140,6 +150,7 @@ impl CPU {
             y: 0,
             status: 0,
             pc: 0,
+            sp: STACK_RESET,
             memory: [0; 0xFFFF],
         }
     }
@@ -151,9 +162,39 @@ impl CPU {
     pub fn reset(&mut self) {
         self.a = 0;
         self.x = 0;
+        self.y = 0;
+        self.sp = STACK_RESET;
         self.status = 0;
 
         self.pc = self.mem_read_word(0xFFFC);
+    }
+
+    // Pops a byte off the stack and increments the stack pointer.
+    fn stack_pop_byte(&mut self) -> u8 {
+        self.sp = self.sp.wrapping_add(1);
+        self.mem_read_byte((STACK as u16) + self.sp as u16)
+    }
+
+    // Pushes a byte onto the stack and decrements the stack pointer.
+    fn stack_push_byte(&mut self, data: u8) {
+        self.mem_write_byte((STACK as u16) + self.sp as u16, data);
+        self.sp = self.sp.wrapping_sub(1);
+    }
+
+    // Pushes two bytes onto the stack.
+    fn stack_push_word(&mut self, data: u16) {
+        let bytes = data.to_le_bytes();
+
+        self.stack_push_byte(bytes[0]);
+        self.stack_push_byte(bytes[1]);
+    }
+
+    // Pops two bytes from the stack and returns a word.
+    fn stack_pop_word(&mut self) -> u16 {
+        let lo = self.stack_pop_byte();
+        let hi = self.stack_pop_byte();
+
+        u16::from_le_bytes([hi, lo])
     }
 
     // Jumps the program to a point in memory if a given condition is true.
@@ -302,9 +343,24 @@ impl CPU {
                     self.jmp(&opcode.mode);
                 }
 
+                // JSR.
+                0x20 => {
+                    self.jsr(&opcode.mode);
+                }
+
                 // LDA.
                 0xA9 | 0xA5 | 0xB5 | 0xAD | 0xBD | 0xB9 | 0xA1 | 0xB1 => {
                     self.lda(&opcode.mode);
+                }
+
+                // LDX.
+                0xA2 | 0xA6 | 0xB6 | 0xAE | 0xBE => {
+                    self.ldx(&opcode.mode);
+                }
+
+                // LDY.
+                0xA0 | 0xA4 | 0xB4 | 0xAC | 0xBC => {
+                    self.ldy(&opcode.mode);
                 }
 
                 // STA.
@@ -705,6 +761,19 @@ impl CPU {
         };
     }
 
+    // JSR: Jump to Subroutine
+    //
+    // The JSR instruction pushes the address (minus one) of the return point on
+    // to the stack and then sets the program counter to the target memory
+    // address.
+    fn jsr(&mut self, mode: &AddressingMode) {
+        self.stack_push_word(self.pc + 1);
+
+        let addr = self.get_operand_address(mode);
+
+        self.pc = addr;
+    }
+
     // LDA: Load Accumulator.
     //
     // Loads a byte of memory into the accumulator setting the zero and
@@ -716,6 +785,32 @@ impl CPU {
         self.a = param;
 
         self.update_zero_and_negative_flags(self.a);
+    }
+
+    // LDX: Load X Register
+    //
+    // Loads a byte of memory into the X register setting the zero and negative
+    // flags as appropriate.
+    fn ldx(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+
+        let param = self.mem_read_byte(addr);
+        self.x = param;
+
+        self.update_zero_and_negative_flags(self.x);
+    }
+
+    // LDY: Load Y Register
+    //
+    // Loads a byte of memory into the Y register setting the zero and negative
+    // flags as appropriate.
+    fn ldy(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+
+        let param = self.mem_read_byte(addr);
+        self.y = param;
+
+        self.update_zero_and_negative_flags(self.y);
     }
 
     // TAX: Transfer Accumulator to X.
