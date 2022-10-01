@@ -363,6 +363,15 @@ impl CPU {
                     self.ldy(&opcode.mode);
                 }
 
+                // LSR.
+                0x4A => self.lsr_accumulator(),
+                0x46 | 0x56 | 0x4E | 0x5E => {
+                    self.lsr(&opcode.mode);
+                }
+
+                // NOP.
+                0xEA => {},
+
                 // STA.
                 0x85 | 0x95 | 0x8D | 0x9D | 0x99 | 0x81 | 0x91 => {
                     self.sta(&opcode.mode);
@@ -811,6 +820,47 @@ impl CPU {
         self.y = param;
 
         self.update_zero_and_negative_flags(self.y);
+    }
+
+
+    // LSR: Logical Shift Right
+    //
+    // Each of the bits in the accumulator is shifted one place to the right.
+    // The bit that was in bit 0 is shifted into the carry flag. Bit 7 is set to
+    // zero.
+    fn lsr_accumulator(&mut self) {
+        let mut data = self.register_a;
+
+        if data & 1 == 1 {
+            self.set_carry_flag();
+        } else {
+            self.clear_carry_flag();
+        }
+
+        data = data >> 1;
+
+        self.set_register_a(data);
+    }
+
+    // LSR: Logical Shift Right
+    //
+    // Each of the bits in memory is shifted one place to the right. The bit
+    // that was in bit 0 is shifted into the carry flag. Bit 7 is set to zero.
+    fn lsr(&mut self, mode: &AddressingMode){
+        let addr = self.get_operand_address(mode);
+
+        let mut data = self.mem_read_byte(addr);
+
+        if data & 1 == 1 {
+            self.set_carry_flag();
+        } else {
+            self.unset_carry_flag();
+        }
+
+        data = data >> 1;
+
+        self.mem_write_byte(addr, data);
+        self.update_zero_and_negative_flags(data);
     }
 
     // TAX: Transfer Accumulator to X.
