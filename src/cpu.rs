@@ -372,6 +372,20 @@ impl CPU {
                 // NOP.
                 0xEA => {},
 
+                // ORA.
+                0x09 | 0x05 | 0x15 | 0x0D | 0x1D | 0x19 | 0x01 | 0x11 => {
+                    self.ora(&opcode.mode);
+                }
+
+                // PHA.
+                0x48 => self.pha(),
+
+                // PHP.
+                0x08 => self.php(),
+
+                // PLA.
+                0x68 => self.pla(),
+
                 // STA.
                 0x85 | 0x95 | 0x8D | 0x9D | 0x99 | 0x81 | 0x91 => {
                     self.sta(&opcode.mode);
@@ -468,7 +482,7 @@ impl CPU {
 
         let param = self.mem_read_byte(addr);
 
-        self.set_register_a(self.a & param);
+        self.set_accumulator(self.a & param);
     }
 
     // ASL: Arithmetic Shift Left
@@ -489,7 +503,7 @@ impl CPU {
 
         data = data << 1;
 
-        self.set_register_a(data)
+        self.set_accumulator(data)
     }
 
     // ASL: Arithmetic Shift Left
@@ -718,7 +732,7 @@ impl CPU {
 
         let param = self.mem_read_byte(addr);
 
-        self.set_register_a(self.a ^ param)
+        self.set_accumulator(self.a ^ param)
     }
 
     // INC: Increment Memory
@@ -829,17 +843,17 @@ impl CPU {
     // The bit that was in bit 0 is shifted into the carry flag. Bit 7 is set to
     // zero.
     fn lsr_accumulator(&mut self) {
-        let mut data = self.register_a;
+        let mut data = self.a;
 
         if data & 1 == 1 {
             self.set_carry_flag();
         } else {
-            self.clear_carry_flag();
+            self.unset_carry_flag();
         }
 
         data = data >> 1;
 
-        self.set_register_a(data);
+        self.set_accumulator(data);
     }
 
     // LSR: Logical Shift Right
@@ -861,6 +875,41 @@ impl CPU {
 
         self.mem_write_byte(addr, data);
         self.update_zero_and_negative_flags(data);
+    }
+
+    // ORA: Logical Inclusive OR
+    //
+    // An inclusive OR is performed, bit by bit, on the accumulator contents
+    // using the contents of a byte of memory.
+    fn ora(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+
+        let param = self.mem_read_byte(addr);
+
+        self.set_accumulator(self.a | param)
+    }
+
+    // PHA: Push Accumulator
+    //
+    // Pushes a copy of the accumulator on to the stack.
+    fn pha(&mut self) {
+        self.stack_push_byte(self.a);
+    }
+
+    // PHP: Push Processor Status
+    //
+    // Pushes a copy of the status flags on to the stack.
+    fn php(&mut self) {
+        self.stack_push_byte(self.status);
+    }
+
+    // PLA: Pull Accumulator
+    //
+    // Pulls an 8 bit value from the stack and into the accumulator. The zero
+    // and negative flags are set as appropriate.
+    fn pla(&mut self) {
+        let data = self.stack_pop_byte();
+        self.set_accumulator(data);
     }
 
     // TAX: Transfer Accumulator to X.
@@ -900,10 +949,11 @@ impl CPU {
             self.status = self.status & 0b10111111;
         }
 
-        self.set_register_a(result);
+        self.set_accumulator(result);
     }
 
-    fn set_register_a(&mut self, value: u8) {
+    // Sets the accumulator value and updates the CPU status.
+    fn set_accumulator(&mut self, value: u8) {
         self.a = value;
         self.update_zero_and_negative_flags(self.a);
     }
