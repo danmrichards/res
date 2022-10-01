@@ -386,6 +386,24 @@ impl CPU {
                 // PLA.
                 0x68 => self.pla(),
 
+                // PLP.
+                0x28 => self.plp(),
+
+                // ROL.
+                0x2A => self.rol_accumulator(),
+                0x26 | 0x36 | 0x2E | 0x3E => {
+                    self.rol(&opcode.mode);
+                }
+
+                // ROR.
+                0x6A => self.ror_accumulator(),
+                0x66 | 0x76 | 0x6E | 0x7E => {
+                    self.ror(&opcode.mode);
+                }
+
+                // RTI.
+                0x40 => self.rti(),
+
                 // STA.
                 0x85 | 0x95 | 0x8D | 0x9D | 0x99 | 0x81 | 0x91 => {
                     self.sta(&opcode.mode);
@@ -570,23 +588,23 @@ impl CPU {
 
         // Update zero flag.
         if param & self.a == 0 {
-            self.status = self.status | 0b00000010;
+            self.status |= 0b00000010;
         } else {
-            self.status = self.status & 0b11111101;
+            self.status &= 0b11111101;
         }
 
         // Copy to negative flag.
         if param & 0b1000000 != 0 {
-            self.status = self.status | 0b10000000;
+            self.status |= 0b10000000;
         } else {
-            self.status = self.status & 0b01111111;
+            self.status &= 0b01111111;
         }
 
         // Copy to overflow flag.
         if param & 0b0100000 != 0 {
-            self.status = self.status | 0b01000000;
+            self.status |= 0b01000000;
         } else {
-            self.status = self.status & 0b10111111;
+            self.status &= 0b10111111;
         }
     }
 
@@ -646,7 +664,7 @@ impl CPU {
     //
     // Sets the decimal mode flag to zero.
     fn cld(&mut self) {
-        self.status = self.status & 0b11110111;
+        self.status &= 0b11110111;
     }
 
     // CLI: Clear Interrupt Disable
@@ -654,14 +672,14 @@ impl CPU {
     // Clears the interrupt disable flag allowing normal interrupt requests to
     // be serviced.
     fn cli(&mut self) {
-        self.status = self.status & 0b11111011;
+        self.status &= 0b11111011;
     }
 
     // CLV: Clear Overflow Flag
     //
     // Clears the overflow flag.
     fn clv(&mut self) {
-        self.status = self.status & 0b10111111;
+        self.status &= 0b10111111;
     }
 
     // CMP: Compare
@@ -845,7 +863,7 @@ impl CPU {
     fn lsr_accumulator(&mut self) {
         let mut data = self.a;
 
-        if data & 1 == 1 {
+        if data & 0b00000001 == 1 {
             self.set_carry_flag();
         } else {
             self.unset_carry_flag();
@@ -865,7 +883,7 @@ impl CPU {
 
         let mut data = self.mem_read_byte(addr);
 
-        if data & 1 == 1 {
+        if data & 0b00000001 == 1 {
             self.set_carry_flag();
         } else {
             self.unset_carry_flag();
@@ -900,7 +918,13 @@ impl CPU {
     //
     // Pushes a copy of the status flags on to the stack.
     fn php(&mut self) {
-        self.stack_push_byte(self.status);
+        // Set the break flags.
+        let mut status = self.status;
+
+        status |= 0b00010000;
+        status |= 0b00100000;
+
+        self.stack_push_byte(status);
     }
 
     // PLA: Pull Accumulator
@@ -910,6 +934,134 @@ impl CPU {
     fn pla(&mut self) {
         let data = self.stack_pop_byte();
         self.set_accumulator(data);
+    }
+
+    // PLA: Pull Processor Status
+    //
+    // Pulls an 8 bit value from the stack and into the processor flags. The
+    // flags will take on new states as determined by the value pulled.
+    fn plp(&mut self) {
+        let data = self.stack_pop_byte();
+        self.status = data;
+
+        // Set the break flags.
+        self.status &= 0b11101111;
+        self.status &= 0b11011111;
+    }
+
+    // ROL: Rotate Left
+    //
+    // Move each of the bits in the accumulator one place to the left. Bit 0 is
+    // filled with the current value of the carry flag whilst the old bit 7
+    // becomes the new carry flag value.
+    fn rol_accumulator(&mut self) {
+        let mut data = self.a;
+        let carry_set = self.status & 0b00000001 != 0;
+
+        if data >> 7 == 1 {
+            self.set_carry_flag();
+        } else {
+            self.unset_carry_flag();
+        }
+
+        data = data << 1;
+        if carry_set {
+            data |= 1;
+        }
+
+        self.set_accumulator(data);
+    }
+
+    // ROL: Rotate Left
+    //
+    // Move each of the bits in the memory value one place to the left. Bit 0 is
+    // filled with the current value of the carry flag whilst the old bit 7
+    // becomes the new carry flag value.
+    fn rol(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let mut data = self.mem_read_byte(addr);
+
+        let carry_set = self.status & 0b00000001 != 0;
+
+        if data >> 7 == 1 {
+            self.set_carry_flag();
+        } else {
+            self.unset_carry_flag();
+        }
+
+        data = data << 1;
+        if carry_set {
+            data |= 0b00000001;
+        }
+
+        self.mem_write_byte(addr, data);
+
+        self.update_zero_and_negative_flags(data);
+    }
+
+    // ROR: Rotate Right
+    //
+    // Move each of the bits in the accumulator one place to the right. Bit 7 is
+    // filled with the current value of the carry flag whilst the old bit 0
+    // becomes the new carry flag value.
+    fn ror_accumulator(&mut self) {
+        let mut data = self.a;
+        let carry_set = self.status & 0b00000001 != 0;
+
+        if data & 0b00000001 == 1 {
+            self.set_carry_flag();
+        } else {
+            self.unset_carry_flag();
+        }
+
+        data = data >> 1;
+        if carry_set {
+            data |= 0b10000000;
+        }
+
+        self.set_accumulator(data);
+    }
+
+    // ROR: Rotate Right.
+    //
+    // Move each of the bits in the memory value one place to the right. Bit 7
+    // is filled with the current value of the carry flag whilst the old bit 0
+    // becomes the new carry flag value.
+    fn ror(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let mut data = self.mem_read_byte(addr);
+
+        let carry_set = self.status & 0b00000001 != 0;
+
+        if data & 0b00000001 == 1 {
+            self.set_carry_flag();
+        } else {
+            self.unset_carry_flag();
+        }
+
+        data = data >> 1;
+        if carry_set {
+            data |= 0b10000000;
+        }
+
+        self.mem_write_byte(addr, data);
+
+        self.update_zero_and_negative_flags(data);
+    }
+
+    // RTI: Return from Interrupt
+    //
+    // The RTI instruction is used at the end of an interrupt processing
+    // routine. It pulls the processor flags from the stack followed by the
+    // program counter.
+    fn rti(&mut self) {
+        self.status = self.stack_pop_byte();
+
+        // Set the break flags.
+        self.status &= 0b11101111;
+        self.status &= 0b11011111;
+
+        self.pc = self.stack_pop_word();
     }
 
     // TAX: Transfer Accumulator to X.
@@ -944,9 +1096,9 @@ impl CPU {
 
         // Set the overflow flag if the sign bit is incorrect.
         if (data ^ result) & (result ^ self.a) & 0x80 != 0 {
-            self.status = self.status | 0b01000000;
+            self.status |= 0b01000000;
         } else {
-            self.status = self.status & 0b10111111;
+            self.status &= 0b10111111;
         }
 
         self.set_accumulator(result);
@@ -977,27 +1129,27 @@ impl CPU {
     fn update_zero_and_negative_flags(&mut self, result: u8) {
         // Zero flag should be set if the result is 0.
         if result == 0 {
-            self.status = self.status | 0b00000010;
+            self.status |= 0b00000010;
         } else {
-            self.status = self.status & 0b11111101;
+            self.status &= 0b11111101;
         }
 
         // Negative flag should be set if bit 7 of the result is set.
         if result & 0b10000000 != 0 {
-            self.status = self.status | 0b10000000;
+            self.status |= 0b10000000;
         } else {
-            self.status = self.status & 0b01111111;
+            self.status &= 0b01111111;
         }
     }
 
     // Sets the carry flag on the CPU status.
     fn set_carry_flag(&mut self) {
-        self.status = self.status | 0b00000001;
+        self.status |= 0b00000001;
     }
 
     // Unsets the carry flag on the CPU status.
     fn unset_carry_flag(&mut self) {
-        self.status = self.status & 0b11111110;
+        self.status &= 0b11111110;
     }
 
     // Sets the program counter to an indirect address.
