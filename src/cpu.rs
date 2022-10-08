@@ -1,6 +1,5 @@
 use crate::instructions;
 use std::collections::HashMap;
-use std::ops::Add;
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
@@ -240,7 +239,7 @@ impl CPU {
                 0x00 => return,
 
                 // ADC.
-                0x69 | 0x65 | 0x75 | 0x6D | 0x7D | 0x79 | 0x61 | 0x11 => {
+                0x69 | 0x65 | 0x75 | 0x6D | 0x7D | 0x79 | 0x61 | 0x71 => {
                     self.adc(&opcode.mode);
                 }
 
@@ -403,6 +402,23 @@ impl CPU {
 
                 // RTI.
                 0x40 => self.rti(),
+
+                // RTS.
+                0x60 => self.rts(),
+
+                // SBC.
+                0xE9 | 0xE5 | 0xF5 | 0xED | 0xFD | 0xF9 | 0xE1 | 0xF1 => {
+                    self.sbc(&opcode.mode);
+                }
+
+                // SEC.
+                0x38 => self.sec(),
+
+                // SED.
+                0xF8 => self.sed(),
+
+                // SEI.
+                0x78 => self.sei(),
 
                 // STA.
                 0x85 | 0x95 | 0x8D | 0x9D | 0x99 | 0x81 | 0x91 => {
@@ -1062,6 +1078,48 @@ impl CPU {
         self.status &= 0b11011111;
 
         self.pc = self.stack_pop_word();
+    }
+
+    // RTS: Return from Subroutine
+    // The RTS instruction is used at the end of a subroutine to return to the
+    // calling routine. It pulls the program counter (minus one) from the stack.   
+    fn rts(&mut self) {
+        self.pc = self.stack_pop_word().wrapping_add(1);
+    }
+
+    // SBC: Subtract with Carry
+    //
+    // This instruction subtracts the contents of a memory location to the
+    // accumulator together with the not of the carry bit. If overflow occurs
+    // the carry bit is clear, this enables multiple byte subtraction to be
+    // performed.
+    fn sbc(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+
+        let param = self.mem_read_byte(addr);
+
+        self.add_to_accumulator(param.wrapping_neg().wrapping_sub(1));
+    }
+
+    // SEC: Set Carry Flag.
+    //
+    // Set the carry flag to one.
+    fn sec(&mut self) {
+        self.set_carry_flag();
+    }
+
+    // SED: Set Decimal Flag.
+    //
+    // Set the decimal mode flag to one.
+    fn sed(&mut self) {
+        self.status |= 0b00001000;
+    }
+
+    // SEI: Set Interrupt Disable
+    //
+    // Set the interrupt disable flag to one.
+    fn sei(&mut self) {
+        self.status |= 0b00000100;
     }
 
     // TAX: Transfer Accumulator to X.
