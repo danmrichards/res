@@ -425,8 +425,33 @@ impl CPU {
                     self.sta(&opcode.mode);
                 }
 
+                // STX.
+                0x86 | 0x96 | 0x8E => {
+                    self.stx(&opcode.mode);
+                }
+
+                // STY.
+                0x84 | 0x94 | 0x8C => {
+                    self.sty(&opcode.mode);
+                }
+
                 // TAX.
                 0xAA => self.tax(),
+
+                // TAY.
+                0xA8 => self.tay(),
+
+                // TSX.
+                0xBA => self.tsx(),
+
+                // TXA.
+                0x8A => self.txa(),
+
+                // TXS.
+                0x9A => self.txs(),
+
+                // TYA.
+                0x98 => self.tya(),
 
                 _ => todo!(""),
             }
@@ -1122,6 +1147,30 @@ impl CPU {
         self.status |= 0b00000100;
     }
 
+    // STA: Store Accumulator
+    //
+    // Stores the contents of the accumulator into memory.
+    fn sta(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_write_byte(addr, self.a)
+    }
+
+    // STX: Store X Register
+    //
+    // Stores the contents of the X register into memory.
+    fn stx(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_write_byte(addr, self.x)
+    }
+
+    // STY: Store Y Register
+    //
+    // Stores the contents of the Y register into memory.
+    fn sty(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_write_byte(addr, self.y)
+    }
+
     // TAX: Transfer Accumulator to X.
     //
     // Copies the current contents of the accumulator into the X register and
@@ -1131,10 +1180,45 @@ impl CPU {
         self.update_zero_and_negative_flags(self.x);
     }
 
-    // Stores the contents of the accumulator into memory.
-    fn sta(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
-        self.mem_write_byte(addr, self.a)
+    // TAY: Transfer Accumulator to Y.
+    //
+    // Copies the current contents of the accumulator into the Y register and
+    // sets the zero and negative flags as appropriate.
+    fn tay(&mut self) {
+        self.y = self.a;
+        self.update_zero_and_negative_flags(self.y);
+    }
+
+    // TSX: Transfer Stack Pointer to X
+    //
+    // Copies the current contents of the stack register into the X register and
+    // sets the zero and negative flags as appropriate.
+    fn tsx(&mut self) {
+        self.x = self.sp;
+        self.update_zero_and_negative_flags(self.x);
+    }
+
+    // TXA: Transfer X to Accumulator
+    //
+    // Copies the current contents of the X register into the accumulator and
+    // sets the zero and negative flags as appropriate.
+    fn txa(&mut self) {
+        self.set_accumulator(self.x);
+    }
+
+    // TXS: Transfer X to Stack Pointer
+    //
+    // Copies the current contents of the X register into the stack register.
+    fn txs(&mut self) {
+        self.sp = self.x;
+    }
+
+    // TYA: Transfer Y to Accumulator
+    //
+    // Copies the current contents of the Y register into the accumulator and
+    // sets the zero and negative flags as appropriate.
+    fn tya(&mut self) {
+        self.set_accumulator(self.y);
     }
 
     // Adds data to the accumulator and sets the CPU status accordingly.
