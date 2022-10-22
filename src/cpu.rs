@@ -59,7 +59,7 @@ pub enum AddressingMode {
     Implied,
 }
 
-trait Memory {
+pub trait Memory {
     // Returns the byte at the given address in memory.
     fn mem_read_byte(&self, addr: u16) -> u8;
 
@@ -71,15 +71,15 @@ trait Memory {
         let lo = self.mem_read_byte(pos);
         let hi = self.mem_read_byte(pos + 1);
 
-        u16::from_le_bytes([hi, lo])
+        u16::from_le_bytes([lo, hi])
     }
 
     // Writes two bytes to memory, split from the data word, as pos and pos + 1.
     fn mem_write_word(&mut self, pos: u16, data: u16) {
         let bytes = data.to_le_bytes();
 
-        self.mem_write_byte(pos, bytes[1]);
-        self.mem_write_byte(pos + 1, bytes[0]);
+        self.mem_write_byte(pos, bytes[0]);
+        self.mem_write_byte(pos + 1, bytes[1]);
     }
 }
 
@@ -184,8 +184,8 @@ impl CPU {
     fn stack_push_word(&mut self, data: u16) {
         let bytes = data.to_le_bytes();
 
-        self.stack_push_byte(bytes[0]);
         self.stack_push_byte(bytes[1]);
+        self.stack_push_byte(bytes[0]);
     }
 
     // Pops two bytes from the stack and returns a word.
@@ -193,7 +193,7 @@ impl CPU {
         let lo = self.stack_pop_byte();
         let hi = self.stack_pop_byte();
 
-        u16::from_le_bytes([hi, lo])
+        u16::from_le_bytes([lo, hi])
     }
 
     // Jumps the program to a point in memory if a given condition is true.
@@ -210,8 +210,8 @@ impl CPU {
     //
     // Program ROM starts at 0x8000 for the NES.
     pub fn load(&mut self, program: Vec<u8>) {
-        self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program[..]);
-        self.mem_write_word(0xFFFC, 0x8000);
+        self.memory[0x0600..(0x0600 + program.len())].copy_from_slice(&program[..]);
+        self.mem_write_word(0xFFFC, 0x0600);
     }
 
     // Loads the program into memory and runs the CPU.
@@ -223,12 +223,22 @@ impl CPU {
 
     // Runs the program loaded into memory.
     pub fn run(&mut self) {
+        self.run_with_callback(|_| {});
+    }
+
+    // Runs the program loaded into memory, and executes the callback function
+    // before each opcode iteration.
+    pub fn run_with_callback<F>(&mut self, mut callback: F)
+    where
+        F: FnMut(&mut CPU),
+    {
         let ref opcodes: HashMap<u8, &'static instructions::OpCode> = *instructions::OPCODES;
 
         loop {
             // Get the opcode at the program counter.
             let code = self.mem_read_byte(self.pc);
             self.pc += 1;
+            let current_pc = self.pc;
 
             // Lookup the full opcode details.
             let opcode = opcodes
@@ -284,7 +294,7 @@ impl CPU {
                 0x70 => self.bvs(),
 
                 // CLC.
-                0x17 => self.clc(),
+                0x18 => self.clc(),
 
                 // CLD.
                 0xD8 => self.cld(),
@@ -343,9 +353,7 @@ impl CPU {
                 }
 
                 // JSR.
-                0x20 => {
-                    self.jsr(&opcode.mode);
-                }
+                0x20 => self.jsr(),
 
                 // LDA.
                 0xA9 | 0xA5 | 0xB5 | 0xAD | 0xBD | 0xB9 | 0xA1 | 0xB1 => {
@@ -369,7 +377,7 @@ impl CPU {
                 }
 
                 // NOP.
-                0xEA => {},
+                0xEA => {}
 
                 // ORA.
                 0x09 | 0x05 | 0x15 | 0x0D | 0x1D | 0x19 | 0x01 | 0x11 => {
@@ -457,8 +465,12 @@ impl CPU {
             }
 
             // Program counter needs to be incremented by the number of bytes
-            // used in the opcode.
-            self.pc += (opcode.len - 1) as u16;
+            // used in the opcode, if not done so elsewhere.
+            if current_pc == self.pc {
+                self.pc += (opcode.len - 1) as u16;
+            }
+
+            callback(self);
         }
     }
 
@@ -500,7 +512,7 @@ impl CPU {
                 let lo = self.mem_read_byte(ptr as u16);
                 let hi = self.mem_read_byte(ptr.wrapping_add(1) as u16);
 
-                u16::from_le_bytes([hi, lo])
+                u16::from_le_bytes([lo, hi])
             }
             AddressingMode::IndirectY => {
                 let base = self.mem_read_byte(self.pc);
@@ -508,7 +520,7 @@ impl CPU {
                 let lo = self.mem_read_byte(base as u16);
                 let hi = self.mem_read_byte((base as u8).wrapping_add(1) as u16);
 
-                let deref_base = u16::from_le_bytes([hi, lo]);
+                let deref_base = u16::from_le_bytes([lo, hi]);
                 let deref = deref_base.wrapping_add(self.y as u16);
                 deref
             }
@@ -848,10 +860,10 @@ impl CPU {
     // The JSR instruction pushes the address (minus one) of the return point on
     // to the stack and then sets the program counter to the target memory
     // address.
-    fn jsr(&mut self, mode: &AddressingMode) {
+    fn jsr(&mut self) {
         self.stack_push_word(self.pc + 1);
 
-        let addr = self.get_operand_address(mode);
+        let addr = self.mem_read_word(self.pc);
 
         self.pc = addr;
     }
@@ -895,7 +907,6 @@ impl CPU {
         self.update_zero_and_negative_flags(self.y);
     }
 
-
     // LSR: Logical Shift Right
     //
     // Each of the bits in the accumulator is shifted one place to the right.
@@ -919,7 +930,7 @@ impl CPU {
     //
     // Each of the bits in memory is shifted one place to the right. The bit
     // that was in bit 0 is shifted into the carry flag. Bit 7 is set to zero.
-    fn lsr(&mut self, mode: &AddressingMode){
+    fn lsr(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
 
         let mut data = self.mem_read_byte(addr);
@@ -1107,7 +1118,7 @@ impl CPU {
 
     // RTS: Return from Subroutine
     // The RTS instruction is used at the end of a subroutine to return to the
-    // calling routine. It pulls the program counter (minus one) from the stack.   
+    // calling routine. It pulls the program counter (minus one) from the stack.
     fn rts(&mut self) {
         self.pc = self.stack_pop_word().wrapping_add(1);
     }
@@ -1323,7 +1334,7 @@ impl CPU {
             let lo = self.mem_read_byte(addr);
             let hi = self.mem_read_byte(addr & 0xFF00);
 
-            jump_addr = u16::from_le_bytes([hi, lo]);
+            jump_addr = u16::from_le_bytes([lo, hi]);
         }
 
         self.pc = jump_addr;
