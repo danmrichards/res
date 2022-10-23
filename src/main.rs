@@ -1,3 +1,4 @@
+pub mod bus;
 pub mod cpu;
 pub mod instructions;
 
@@ -9,21 +10,22 @@ use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::EventPump;
+use bus::Bus;
 
 const RNG: u16 = 0xFE;
 const LAST_PRESSED: u16 = 0xFF;
 
 fn color(byte: u8) -> Color {
     match byte {
-        0 => sdl2::pixels::Color::BLACK,
-        1 => sdl2::pixels::Color::WHITE,
-        2 | 9 => sdl2::pixels::Color::GREY,
-        3 | 10 => sdl2::pixels::Color::RED,
-        4 | 11 => sdl2::pixels::Color::GREEN,
-        5 | 12 => sdl2::pixels::Color::BLUE,
-        6 | 13 => sdl2::pixels::Color::MAGENTA,
-        7 | 14 => sdl2::pixels::Color::YELLOW,
-        _ => sdl2::pixels::Color::CYAN,
+        0 => Color::BLACK,
+        1 => Color::WHITE,
+        2 | 9 => Color::GREY,
+        3 | 10 => Color::RED,
+        4 | 11 => Color::GREEN,
+        5 | 12 => Color::BLUE,
+        6 | 13 => Color::MAGENTA,
+        7 | 14 => Color::YELLOW,
+        _ => Color::CYAN,
     }
 }
 
@@ -124,9 +126,13 @@ fn main() {
         0x60, 0xa2, 0x00, 0xea, 0xea, 0xca, 0xd0, 0xfb, 0x60,
     ];
 
-    let mut cpu = CPU::new();
+    let bus = Bus::new();
+    let mut cpu = CPU::new(bus);
     cpu.load(game_code);
     cpu.reset();
+
+    // Hacking program counter just to get this test ROM to work.
+    cpu.pc = 0x0600;
 
     let mut screen_state = [0 as u8; 32 * 3 * 32];
     let mut rng = rand::thread_rng();

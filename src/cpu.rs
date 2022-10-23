@@ -1,5 +1,6 @@
 use crate::instructions;
 use std::collections::HashMap;
+use crate::bus::Bus;
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
@@ -124,25 +125,34 @@ pub struct CPU {
     // the stack pointer is incremented
     pub sp: u8,
 
-    // Memory stores the data available to the CPU.
-    memory: [u8; 0xFFFF],
+    pub bus: Bus,
 }
 
 impl Memory for CPU {
     // Returns the byte at the given address in memory.
     fn mem_read_byte(&self, addr: u16) -> u8 {
-        self.memory[addr as usize]
+        self.bus.mem_read_byte(addr)
     }
 
     // Writes the data at the given address in memory.
     fn mem_write_byte(&mut self, addr: u16, data: u8) {
-        self.memory[addr as usize] = data
+        self.bus.mem_write_byte(addr, data)
+    }
+
+    // Returns a word from memory, merged from the two bytes at pos and pos + 1.
+    fn mem_read_word(&self, pos: u16) -> u16 {
+        self.bus.mem_read_word(pos)
+    }
+
+    // Writes two bytes to memory, split from the data word, as pos and pos + 1.
+    fn mem_write_word(&mut self, pos: u16, data: u16) {
+        self.bus.mem_write_word(pos, data)
     }
 }
 
 impl CPU {
     // Returns an instantiated CPU.
-    pub fn new() -> Self {
+    pub fn new(bus: Bus) -> Self {
         CPU {
             a: 0,
             x: 0,
@@ -150,7 +160,7 @@ impl CPU {
             status: 0,
             pc: 0,
             sp: STACK_RESET,
-            memory: [0; 0xFFFF],
+            bus,
         }
     }
 
@@ -210,7 +220,9 @@ impl CPU {
     //
     // Program ROM starts at 0x8000 for the NES.
     pub fn load(&mut self, program: Vec<u8>) {
-        self.memory[0x0600..(0x0600 + program.len())].copy_from_slice(&program[..]);
+        for i in 0..(program.len() as u16) {
+            self.mem_write_byte(0x0600 + i, program[i as usize]);
+        }
         self.mem_write_word(0xFFFC, 0x0600);
     }
 
@@ -244,7 +256,7 @@ impl CPU {
             let opcode = opcodes
                 .get(&code)
                 .expect(&format!("OpCode {:x} is not recognized", code));
-
+            
             match opcode.code {
                 0x00 => return,
 
@@ -1347,7 +1359,8 @@ mod test {
 
     #[test]
     fn test_0xa9_lda_immediate_load_data() {
-        let mut cpu = CPU::new();
+        let bus = Bus::new();
+        let mut cpu = CPU::new(bus);
         cpu.load_and_run(vec![0xa9, 0x05, 0x00]);
 
         assert_eq!(cpu.a, 0x05);
@@ -1357,7 +1370,8 @@ mod test {
 
     #[test]
     fn test_0xa9_lda_zero_flag() {
-        let mut cpu = CPU::new();
+        let bus = Bus::new();
+        let mut cpu = CPU::new(bus);
         cpu.load_and_run(vec![0xa9, 0x00, 0x00]);
 
         assert_eq!(cpu.status & 0b00000010, 0b10);
@@ -1365,7 +1379,8 @@ mod test {
 
     #[test]
     fn test_lda_from_memory() {
-        let mut cpu = CPU::new();
+        let bus = Bus::new();
+        let mut cpu = CPU::new(bus);
         cpu.mem_write_byte(0x10, 0x55);
 
         cpu.load_and_run(vec![0xa5, 0x10, 0x00]);
@@ -1375,7 +1390,8 @@ mod test {
 
     #[test]
     fn test_sta() {
-        let mut cpu = CPU::new();
+        let bus = Bus::new();
+        let mut cpu = CPU::new(bus);
         cpu.load_and_run(vec![0xa9, 0x05, 0x85, 0x20, 0x00]);
 
         assert_eq!(cpu.a, 0x05);
@@ -1384,7 +1400,8 @@ mod test {
 
     #[test]
     fn test_0xaa_tax_move_a_to_x() {
-        let mut cpu = CPU::new();
+        let bus = Bus::new();
+        let mut cpu = CPU::new(bus);
         cpu.load(vec![0xaa, 0x00]);
         cpu.reset();
         cpu.a = 10;
@@ -1395,7 +1412,8 @@ mod test {
 
     #[test]
     fn test_0xe8_inx_increment_x() {
-        let mut cpu = CPU::new();
+        let bus = Bus::new();
+        let mut cpu = CPU::new(bus);
         cpu.load(vec![0xe8, 0x00]);
         cpu.reset();
         cpu.x = 1;
@@ -1406,7 +1424,8 @@ mod test {
 
     #[test]
     fn test_inx_overflow() {
-        let mut cpu = CPU::new();
+        let bus = Bus::new();
+        let mut cpu = CPU::new(bus);
         cpu.load(vec![0xe8, 0xe8, 0x00]);
         cpu.reset();
 
@@ -1418,7 +1437,8 @@ mod test {
 
     #[test]
     fn test_5_ops_working_together() {
-        let mut cpu = CPU::new();
+        let bus = Bus::new();
+        let mut cpu = CPU::new(bus);
         cpu.load_and_run(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
 
         assert_eq!(cpu.x, 0xc1)
