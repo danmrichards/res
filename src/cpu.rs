@@ -1,6 +1,6 @@
+use crate::bus::Bus;
 use crate::instructions;
 use std::collections::HashMap;
-use crate::bus::Bus;
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
@@ -125,6 +125,8 @@ pub struct CPU {
     // the stack pointer is incremented
     pub sp: u8,
 
+    // Handles data read/write, interrupts, memory mapping and PPU/CPU clock
+    // cycles.
     pub bus: Bus,
 }
 
@@ -256,7 +258,7 @@ impl CPU {
             let opcode = opcodes
                 .get(&code)
                 .expect(&format!("OpCode {:x} is not recognized", code));
-            
+
             match opcode.code {
                 0x00 => return,
 

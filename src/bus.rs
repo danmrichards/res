@@ -1,4 +1,5 @@
 use crate::cpu::Memory;
+use crate::cartridge::Rom;
 
 // | Address range | Size  | Device                                                                  |
 // | ------------- | ----- | ----------------------------------------------------------------------- |
@@ -15,33 +16,48 @@ const RAM: u16 = 0x0000;
 const RAM_MIRRORS_END: u16 = 0x1FFF;
 const PPU_REGISTERS: u16 = 0x2000;
 const PPU_REGISTERS_MIRRORS_END: u16 = 0x3FFF;
+const PRG: u16 = 0x8000;
+const PRG_END: u16 = 0xFFFF;
 
 // Bus abstracts a single location data read/write, interrupts, memory mapping
 // and PPU/CPU clock cycles.
 pub struct Bus {
     cpu_vram: [u8; 2048],
+    rom: Rom,
 }
 
 impl Bus {
     // Returns an instantiated Bus.
-    pub fn new() -> Self {
+    pub fn new(rom: Rom) -> Self {
         Bus {
             cpu_vram: [0; 2048],
+            rom,
         }
+    }
+
+    // Returns a byte from PRG ROM at the given address.
+    fn read_prg(&self, mut addr: u16) -> u8 {
+        addr -= PRG;
+        if self.rom.prg.len() == 0x4000 && addr >= 0x4000 {
+            // Mirror if needed
+            addr = addr % 0x4000;
+        }
+        self.rom.prg[addr as usize]
     }
 }
 
 impl Memory for Bus {
     fn mem_read_byte(&self, addr: u16) -> u8 {
         match addr {
-            RAM ..= RAM_MIRRORS_END => {
+            RAM..=RAM_MIRRORS_END => {
                 let mirror_down_addr = addr & 0b00000111_11111111;
                 self.cpu_vram[mirror_down_addr as usize]
             }
-            PPU_REGISTERS ..= PPU_REGISTERS_MIRRORS_END => {
+            PPU_REGISTERS..=PPU_REGISTERS_MIRRORS_END => {
                 let _mirror_down_addr = addr & 0b00100000_00000111;
                 todo!("PPU is not supported yet")
             }
+            PRG..=PRG_END => self.read_prg(addr),
             _ => {
                 println!("Ignoring mem access at {}", addr);
                 0
@@ -51,13 +67,16 @@ impl Memory for Bus {
 
     fn mem_write_byte(&mut self, addr: u16, data: u8) {
         match addr {
-            RAM ..= RAM_MIRRORS_END => {
+            RAM..=RAM_MIRRORS_END => {
                 let mirror_down_addr = addr & 0b11111111111;
                 self.cpu_vram[mirror_down_addr as usize] = data;
             }
-            PPU_REGISTERS ..= PPU_REGISTERS_MIRRORS_END => {
+            PPU_REGISTERS..=PPU_REGISTERS_MIRRORS_END => {
                 let _mirror_down_addr = addr & 0b00100000_00000111;
                 todo!("PPU is not supported yet");
+            }
+            PRG..=PRG_END => {
+                panic!("Attempt to write to cartridge ROM space")
             }
             _ => {
                 println!("Ignoring mem write-access at {}", addr);
