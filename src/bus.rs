@@ -1,5 +1,5 @@
-use crate::cpu::Memory;
 use crate::cartridge::Rom;
+use crate::cpu::Memory;
 
 // | Address range | Size  | Device                                                                  |
 // | ------------- | ----- | ----------------------------------------------------------------------- |

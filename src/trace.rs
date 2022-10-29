@@ -7,6 +7,7 @@ use std::collections::HashMap;
 pub fn trace(cpu: &CPU) -> String {
     let ref opcodes: HashMap<u8, &'static instructions::OpCode> = *instructions::OPCODES;
 
+    // Get the current opcode.
     let code = cpu.mem_read_byte(cpu.pc);
     let op = opcodes.get(&code).unwrap();
 
@@ -14,6 +15,7 @@ pub fn trace(cpu: &CPU) -> String {
     let mut hex_dump = vec![];
     hex_dump.push(code);
 
+    // Get the operands and memory used by the current opcode.
     let (mem_addr, stored_value) = match op.mode {
         AddressingMode::Immediate | AddressingMode::Implied => (0, 0),
         _ => {
@@ -22,14 +24,14 @@ pub fn trace(cpu: &CPU) -> String {
         }
     };
 
-    let tmp = match op.len {
+    // Build an assembly string representation of the operation.
+    let asm_op = match op.len {
         1 => match op.code {
             0x0A | 0x4A | 0x2A | 0x6A => format!("A "),
             _ => String::from(""),
         },
         2 => {
             let address: u8 = cpu.mem_read_byte(begin + 1);
-            // let value = cpu.mem_read_byte(address));
             hex_dump.push(address);
 
             match op.mode {
@@ -58,7 +60,6 @@ pub fn trace(cpu: &CPU) -> String {
                     stored_value
                 ),
                 AddressingMode::Implied => {
-                    // assuming local jumps: BNE, BVS, etc....
                     let address: usize =
                         (begin as usize + 2).wrapping_add((address as i8) as usize);
                     format!("${:04x}", address)
@@ -81,7 +82,6 @@ pub fn trace(cpu: &CPU) -> String {
             match op.mode {
                 AddressingMode::Implied => {
                     if op.code == 0x6c {
-                        //jmp indirect
                         let jmp_addr = if address & 0x00FF == 0x00FF {
                             let lo = cpu.mem_read_byte(address);
                             let hi = cpu.mem_read_byte(address & 0xFF00);
@@ -90,7 +90,6 @@ pub fn trace(cpu: &CPU) -> String {
                             cpu.mem_read_word(address)
                         };
 
-                        // let jmp_addr = cpu.mem_read_word(address);
                         format!("(${:04x}) = {:04x}", address, jmp_addr)
                     } else {
                         format!("${:04x}", address)
@@ -119,15 +118,18 @@ pub fn trace(cpu: &CPU) -> String {
         .map(|z| format!("{:02x}", z))
         .collect::<Vec<String>>()
         .join(" ");
-    let asm_str = format!("{:04x}  {:8} {: >4} {}", begin, hex_str, op.mnemonic, tmp)
-        .trim()
-        .to_string();
+    let asm_str = format!(
+        "{:04x}  {:8} {: >4} {}",
+        begin, hex_str, op.mnemonic, asm_op
+    )
+    .trim()
+    .to_string();
 
     format!(
         "{:47} A:{:02x} X:{:02x} Y:{:02x} P:{:02x} SP:{:02x}",
         asm_str, cpu.a, cpu.x, cpu.y, cpu.status, cpu.sp,
     )
-        .to_ascii_uppercase()
+    .to_ascii_uppercase()
 }
 
 #[cfg(test)]

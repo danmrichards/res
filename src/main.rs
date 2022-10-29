@@ -7,9 +7,9 @@ pub mod instructions;
 pub mod trace;
 
 use bus::Bus;
+use cartridge::Rom;
 use cpu::Memory;
 use cpu::CPU;
-use cartridge::Rom;
 use rand::Rng;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
