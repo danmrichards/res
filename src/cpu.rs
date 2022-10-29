@@ -87,6 +87,7 @@ pub trait Memory {
 // Stack is located from $0100-$01FF.
 const STACK: u16 = 0x0100;
 const STACK_RESET: u8 = 0xFD;
+const STATUS_DEFAULT: u8 = 0b00100100;
 
 // Represents the NES CPU.
 pub struct CPU {
@@ -159,7 +160,7 @@ impl CPU {
             a: 0,
             x: 0,
             y: 0,
-            status: 0,
+            status: STATUS_DEFAULT,
             pc: 0,
             sp: STACK_RESET,
             bus,
@@ -175,7 +176,7 @@ impl CPU {
         self.x = 0;
         self.y = 0;
         self.sp = STACK_RESET;
-        self.status = 0;
+        self.status = STATUS_DEFAULT;
 
         self.pc = self.mem_read_word(0xFFFC);
     }
@@ -225,13 +226,13 @@ impl CPU {
         for i in 0..(program.len() as u16) {
             self.mem_write_byte(0x0600 + i, program[i as usize]);
         }
-        self.mem_write_word(0xFFFC, 0x0600);
     }
 
     // Loads the program into memory and runs the CPU.
     pub fn load_and_run(&mut self, program: Vec<u8>) {
         self.load(program);
         self.reset();
+        self.pc = 0x0600;
         self.run();
     }
 
@@ -249,6 +250,8 @@ impl CPU {
         let ref opcodes: HashMap<u8, &'static instructions::OpCode> = *instructions::OPCODES;
 
         loop {
+            callback(self);
+
             // Get the opcode at the program counter.
             let code = self.mem_read_byte(self.pc);
             self.pc += 1;
@@ -483,44 +486,42 @@ impl CPU {
             if current_pc == self.pc {
                 self.pc += (opcode.len - 1) as u16;
             }
-
-            callback(self);
         }
     }
-
-    // Returns the address of the operand for a given addressing mode.
-    fn get_operand_address(&self, mode: &AddressingMode) -> u16 {
+    // Returns the address of the operand for a given non-immediate addressing
+    // mode.
+    pub fn get_operand_mode_address(&self, mode: &AddressingMode, operand: u16) -> u16 {
         match mode {
-            AddressingMode::Immediate => self.pc,
+            AddressingMode::Immediate => operand,
 
-            AddressingMode::ZeroPage => self.mem_read_byte(self.pc) as u16,
+            AddressingMode::ZeroPage => self.mem_read_byte(operand) as u16,
 
-            AddressingMode::Absolute => self.mem_read_word(self.pc),
+            AddressingMode::Absolute => self.mem_read_word(operand),
 
             AddressingMode::ZeroPageX => {
-                let pos = self.mem_read_byte(self.pc);
+                let pos = self.mem_read_byte(operand);
                 let addr = pos.wrapping_add(self.x) as u16;
                 addr
             }
             AddressingMode::ZeroPageY => {
-                let pos = self.mem_read_byte(self.pc);
+                let pos = self.mem_read_byte(operand);
                 let addr = pos.wrapping_add(self.y) as u16;
                 addr
             }
 
             AddressingMode::AbsoluteX => {
-                let base = self.mem_read_word(self.pc);
+                let base = self.mem_read_word(operand);
                 let addr = base.wrapping_add(self.x as u16);
                 addr
             }
             AddressingMode::AbsoluteY => {
-                let base = self.mem_read_word(self.pc);
+                let base = self.mem_read_word(operand);
                 let addr = base.wrapping_add(self.y as u16);
                 addr
             }
 
             AddressingMode::IndirectX => {
-                let base = self.mem_read_byte(self.pc);
+                let base = self.mem_read_byte(operand);
 
                 let ptr: u8 = (base as u8).wrapping_add(self.x);
                 let lo = self.mem_read_byte(ptr as u16);
@@ -529,7 +530,7 @@ impl CPU {
                 u16::from_le_bytes([lo, hi])
             }
             AddressingMode::IndirectY => {
-                let base = self.mem_read_byte(self.pc);
+                let base = self.mem_read_byte(operand);
 
                 let lo = self.mem_read_byte(base as u16);
                 let hi = self.mem_read_byte((base as u8).wrapping_add(1) as u16);
@@ -542,6 +543,14 @@ impl CPU {
             AddressingMode::Implied => {
                 panic!("mode {:?} is not supported", mode);
             }
+        }
+    }
+
+    // Returns the address of the operand for a given addressing mode.
+    fn get_operand_address(&self, mode: &AddressingMode) -> u16 {
+        match mode {
+            AddressingMode::Immediate => self.pc,
+            _ => self.get_operand_mode_address(mode, self.pc),
         }
     }
 
@@ -1358,10 +1367,11 @@ impl CPU {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::cartridge::test;
 
     #[test]
     fn test_0xa9_lda_immediate_load_data() {
-        let bus = Bus::new();
+        let bus = Bus::new(test::test_rom());
         let mut cpu = CPU::new(bus);
         cpu.load_and_run(vec![0xa9, 0x05, 0x00]);
 
@@ -1372,7 +1382,7 @@ mod test {
 
     #[test]
     fn test_0xa9_lda_zero_flag() {
-        let bus = Bus::new();
+        let bus = Bus::new(test::test_rom());
         let mut cpu = CPU::new(bus);
         cpu.load_and_run(vec![0xa9, 0x00, 0x00]);
 
@@ -1381,7 +1391,7 @@ mod test {
 
     #[test]
     fn test_lda_from_memory() {
-        let bus = Bus::new();
+        let bus = Bus::new(test::test_rom());
         let mut cpu = CPU::new(bus);
         cpu.mem_write_byte(0x10, 0x55);
 
@@ -1392,7 +1402,7 @@ mod test {
 
     #[test]
     fn test_sta() {
-        let bus = Bus::new();
+        let bus = Bus::new(test::test_rom());
         let mut cpu = CPU::new(bus);
         cpu.load_and_run(vec![0xa9, 0x05, 0x85, 0x20, 0x00]);
 
@@ -1402,10 +1412,11 @@ mod test {
 
     #[test]
     fn test_0xaa_tax_move_a_to_x() {
-        let bus = Bus::new();
+        let bus = Bus::new(test::test_rom());
         let mut cpu = CPU::new(bus);
         cpu.load(vec![0xaa, 0x00]);
         cpu.reset();
+        cpu.pc = 0x0600;
         cpu.a = 10;
 
         cpu.run();
@@ -1414,10 +1425,11 @@ mod test {
 
     #[test]
     fn test_0xe8_inx_increment_x() {
-        let bus = Bus::new();
+        let bus = Bus::new(test::test_rom());
         let mut cpu = CPU::new(bus);
         cpu.load(vec![0xe8, 0x00]);
         cpu.reset();
+        cpu.pc = 0x0600;
         cpu.x = 1;
 
         cpu.run();
@@ -1426,12 +1438,13 @@ mod test {
 
     #[test]
     fn test_inx_overflow() {
-        let bus = Bus::new();
+        let bus = Bus::new(test::test_rom());
         let mut cpu = CPU::new(bus);
         cpu.load(vec![0xe8, 0xe8, 0x00]);
         cpu.reset();
 
         cpu.x = 0xff;
+        cpu.pc = 0x0600;
         cpu.run();
 
         assert_eq!(cpu.x, 1)
@@ -1439,7 +1452,7 @@ mod test {
 
     #[test]
     fn test_5_ops_working_together() {
-        let bus = Bus::new();
+        let bus = Bus::new(test::test_rom());
         let mut cpu = CPU::new(bus);
         cpu.load_and_run(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
 
