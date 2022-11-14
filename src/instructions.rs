@@ -26,6 +26,7 @@ impl OpCode {
 
 lazy_static! {
     static ref CPU_OPCODES: Vec<OpCode> = vec![
+        // Official opcodes.
         OpCode::new(0x69, "ADC", 2, 2, AddressingMode::Immediate),
         OpCode::new(0x65, "ADC", 2, 3, AddressingMode::ZeroPage),
         OpCode::new(0x75, "ADC", 2, 4, AddressingMode::ZeroPageX),
@@ -177,7 +178,38 @@ lazy_static! {
         OpCode::new(0x8A, "TXA", 1, 2, AddressingMode::Implied),
         OpCode::new(0x9A, "TXS", 1, 2, AddressingMode::Implied),
         OpCode::new(0x98, "TYA", 1, 2, AddressingMode::Implied),
+
+        // Unofficial/undocumented opcodes.
+        OpCode::new(0x04, "*NOP", 2, 3, AddressingMode::ZeroPage),
+        OpCode::new(0x14, "*NOP", 2, 4, AddressingMode::ZeroPageX),
+        OpCode::new(0x34, "*NOP", 2, 4, AddressingMode::ZeroPageX),
+        OpCode::new(0x44, "*NOP", 2, 3, AddressingMode::ZeroPage),
+        OpCode::new(0x54, "*NOP", 2, 4, AddressingMode::ZeroPageX),
+        OpCode::new(0x64, "*NOP", 2, 3, AddressingMode::ZeroPage),
+        OpCode::new(0x74, "*NOP", 2, 4, AddressingMode::ZeroPageX),
+        OpCode::new(0x80, "*NOP", 2, 2, AddressingMode::Immediate),
+        OpCode::new(0x82, "*NOP", 2, 2, AddressingMode::Immediate),
+        OpCode::new(0x89, "*NOP", 2, 2, AddressingMode::Immediate),
+        OpCode::new(0xC2, "*NOP", 2, 2, AddressingMode::Immediate),
+        OpCode::new(0xD4, "*NOP", 2, 4, AddressingMode::ZeroPageX),
+        OpCode::new(0xE2, "*NOP", 2, 2, AddressingMode::Immediate),
+        OpCode::new(0xF4, "*NOP", 2, 4, AddressingMode::ZeroPageX),
+        OpCode::new(0x0C, "*NOP", 3, 4, AddressingMode::Absolute),
+        OpCode::new(0x1C, "*NOP", 3, 4, AddressingMode::AbsoluteX),
+        OpCode::new(0x3C, "*NOP", 3, 4, AddressingMode::AbsoluteX),
+        OpCode::new(0x5C, "*NOP", 3, 4, AddressingMode::AbsoluteX),
+        OpCode::new(0x7C, "*NOP", 3, 4, AddressingMode::AbsoluteX),
+        OpCode::new(0xDC, "*NOP", 3, 4, AddressingMode::AbsoluteX),
+        OpCode::new(0xFC, "*NOP", 3, 4, AddressingMode::AbsoluteX),
+
+        OpCode::new(0x1A, "*NOP", 1,2, AddressingMode::Implied),
+        OpCode::new(0x3A, "*NOP", 1,2, AddressingMode::Implied),
+        OpCode::new(0x5A, "*NOP", 1,2, AddressingMode::Implied),
+        OpCode::new(0x7A, "*NOP", 1,2, AddressingMode::Implied),
+        OpCode::new(0xDA, "*NOP", 1,2, AddressingMode::Implied),
+        OpCode::new(0xFA, "*NOP", 1,2, AddressingMode::Implied),
     ];
+
     pub static ref OPCODES: HashMap<u8, &'static OpCode> = {
         let mut map = HashMap::new();
         for opc in &*CPU_OPCODES {

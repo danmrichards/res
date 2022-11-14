@@ -263,6 +263,7 @@ impl CPU {
                 .expect(&format!("OpCode {:x} is not recognized", code));
 
             match opcode.code {
+                // Official opcodes.
                 0x00 => return,
 
                 // ADC.
@@ -482,7 +483,19 @@ impl CPU {
                 // TYA.
                 0x98 => self.tya(),
 
-                _ => todo!(""),
+                // Unofficial/undocumented opcodes.
+
+                // NOP (IGN).
+                0x04 | 0x44 | 0x64 | 0x14 | 0x34 | 0x54 | 0x74 | 0xD4 | 0xF4 | 0x0C | 0x1C
+                | 0x3C | 0x5C | 0x7C | 0xDC | 0xFC => self.ign(&opcode.mode),
+
+                // NOP (unofficial).
+                0x1A | 0x3A | 0x5A | 0x7A | 0xDA | 0xFA => {},
+
+                // NOP (SKB).
+                0x80 | 0x82 | 0x89 | 0xC2 | 0xE2 => self.skb(),
+
+                _ => todo!("{:02x} {}", opcode.code, opcode.mnemonic),
             }
 
             // Program counter needs to be incremented by the number of bytes
@@ -1243,6 +1256,22 @@ impl CPU {
         self.set_accumulator(self.y);
     }
 
+    // IGN: Ignore.
+    //
+    // Reads from memory at the specified address and ignores the value. Affects
+    // no register nor flags
+    fn ign(&self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        self.mem_read_byte(addr);
+    }
+
+    // SKB: Skip byte.
+    //
+    // Reads an immediate byte and skips it.
+    fn skb(&self) {
+        self.mem_read_byte(self.pc);
+    }
+
     // Adds data to the accumulator and sets the CPU status accordingly.
     fn add_to_accumulator(&mut self, data: u8) {
         let carry = self.status & 0x01;
@@ -1467,7 +1496,6 @@ mod test {
             println!("{}", trace(cpu));
         });
 
-        
         // let cpu_trace = result.join("\n");
         // println!("{}", cpu_trace);
     }
