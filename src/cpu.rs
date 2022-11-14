@@ -365,8 +365,12 @@ impl CPU {
                 0xC8 => self.iny(),
 
                 // JMP.
-                0x4c | 0x6c => {
-                    self.jmp(&opcode.mode);
+                0x4c => {
+                    let addr = self.mem_read_word(self.pc);
+                    self.pc = addr;
+                }
+                0x6c => {
+                    self.jmp_indirect();
                 }
 
                 // JSR.
@@ -670,14 +674,14 @@ impl CPU {
         }
 
         // Copy to negative flag.
-        if param & 0b1000000 != 0 {
+        if param & 0b10000000 > 0 {
             self.status |= 0b10000000;
         } else {
             self.status &= 0b01111111;
         }
 
         // Copy to overflow flag.
-        if param & 0b0100000 != 0 {
+        if param & 0b01000000 > 0 {
             self.status |= 0b01000000;
         } else {
             self.status &= 0b10111111;
@@ -862,22 +866,6 @@ impl CPU {
         self.update_zero_and_negative_flags(self.y);
     }
 
-    // JMP: Jump
-    //
-    // Sets the program counter to the address specified by the operand.
-    fn jmp(&mut self, mode: &AddressingMode) {
-        match mode {
-            // Implied mode has to be handled separately due to a hardware bug
-            // on the real 6502. We need to recreate that bug here for absolute
-            // compatibility!
-            AddressingMode::Implied => self.jump_indirect(),
-
-            _ => {
-                self.pc = self.get_operand_address(mode);
-            }
-        };
-    }
-
     // JSR: Jump to Subroutine
     //
     // The JSR instruction pushes the address (minus one) of the return point on
@@ -1011,7 +999,7 @@ impl CPU {
         self.set_accumulator(data);
     }
 
-    // PLA: Pull Processor Status
+    // PLP: Pull Processor Status
     //
     // Pulls an 8 bit value from the stack and into the processor flags. The
     // flags will take on new states as determined by the value pulled.
@@ -1021,7 +1009,7 @@ impl CPU {
 
         // Set the break flags.
         self.status &= 0b11101111;
-        self.status &= 0b11011111;
+        self.status |= 0b00100000;
     }
 
     // ROL: Rotate Left
@@ -1134,7 +1122,7 @@ impl CPU {
 
         // Set the break flags.
         self.status &= 0b11101111;
-        self.status &= 0b11011111;
+        self.status |= 0b00100000;
 
         self.pc = self.stack_pop_word();
     }
@@ -1293,8 +1281,10 @@ impl CPU {
 
         let param = self.mem_read_byte(addr);
 
-        if data >= param {
+        if param <= data {
             self.set_carry_flag();
+        } else {
+            self.unset_carry_flag();
         }
 
         self.update_zero_and_negative_flags(data.wrapping_sub(param))
@@ -1311,7 +1301,7 @@ impl CPU {
         }
 
         // Negative flag should be set if bit 7 of the result is set.
-        if result & 0b10000000 != 0 {
+        if result >> 7 == 1 {
             self.status |= 0b10000000;
         } else {
             self.status &= 0b01111111;
@@ -1334,7 +1324,7 @@ impl CPU {
     // the indirect vector falls on a page boundary (e.g. $xxFF where xx is
     // any value from $00 to $FF). In this case fetches the LSB from $xxFF
     // as expected but takes the MSB from $xx00.
-    fn jump_indirect(&mut self) {
+    fn jmp_indirect(&mut self) {
         let addr = self.mem_read_word(self.pc);
 
         let mut jump_addr = self.mem_read_word(addr);
@@ -1368,6 +1358,8 @@ impl CPU {
 mod test {
     use super::*;
     use crate::cartridge::test;
+    use crate::cartridge::Rom;
+    use crate::trace::trace;
 
     #[test]
     fn test_0xa9_lda_immediate_load_data() {
@@ -1457,5 +1449,26 @@ mod test {
         cpu.load_and_run(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
 
         assert_eq!(cpu.x, 0xc1)
+    }
+
+    #[test]
+    fn test_compare_nestest_rom() {
+        let bytes: Vec<u8> = std::fs::read("nestest.nes").unwrap();
+        let rom = Rom::new(&bytes).unwrap();
+
+        let bus = Bus::new(rom);
+        let mut cpu = CPU::new(bus);
+        cpu.reset();
+        cpu.pc = 0xC000;
+
+        let mut result: Vec<String> = vec![];
+        cpu.run_with_callback(|cpu| {
+            result.push(trace(cpu));
+            println!("{}", trace(cpu));
+        });
+
+        
+        // let cpu_trace = result.join("\n");
+        // println!("{}", cpu_trace);
     }
 }
