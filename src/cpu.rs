@@ -278,9 +278,7 @@ impl CPU {
 
                 // ASL.
                 0x0A => self.asl_implied(),
-                0x06 | 0x16 | 0x0E | 0x1E => {
-                    self.asl(&opcode.mode);
-                }
+                0x06 | 0x16 | 0x0E | 0x1E => self.asl(&opcode.mode),
 
                 // BCC.
                 0x90 => self.bcc(),
@@ -292,9 +290,7 @@ impl CPU {
                 0xF0 => self.beq(),
 
                 // BIT.
-                0x24 | 0x2C => {
-                    self.bit(&opcode.mode);
-                }
+                0x24 | 0x2C => self.bit(&opcode.mode),
 
                 // BMI.
                 0x30 => self.bmi(),
@@ -329,19 +325,13 @@ impl CPU {
                 }
 
                 // CMPX.
-                0xE0 | 0xE4 | 0xEC => {
-                    self.cmpx(&opcode.mode);
-                }
+                0xE0 | 0xE4 | 0xEC => self.cmpx(&opcode.mode),
 
                 // CMPY.
-                0xC0 | 0xC4 | 0xCC => {
-                    self.cmpy(&opcode.mode);
-                }
+                0xC0 | 0xC4 | 0xCC => self.cmpy(&opcode.mode),
 
                 // DEC.
-                0xC6 | 0xD6 | 0xCE | 0xDE => {
-                    self.dec(&opcode.mode);
-                }
+                0xC6 | 0xD6 | 0xCE | 0xDE => self.dec(&opcode.mode),
 
                 // DECX.
                 0xCA => self.decx(),
@@ -355,9 +345,7 @@ impl CPU {
                 }
 
                 // INC.
-                0xE6 | 0xF6 | 0xEE | 0xFE => {
-                    self.inc(&opcode.mode);
-                }
+                0xE6 | 0xF6 | 0xEE | 0xFE => self.inc(&opcode.mode),
 
                 // INX.
                 0xE8 => self.inx(),
@@ -383,20 +371,14 @@ impl CPU {
                 }
 
                 // LDX.
-                0xA2 | 0xA6 | 0xB6 | 0xAE | 0xBE => {
-                    self.ldx(&opcode.mode);
-                }
+                0xA2 | 0xA6 | 0xB6 | 0xAE | 0xBE => self.ldx(&opcode.mode),
 
                 // LDY.
-                0xA0 | 0xA4 | 0xB4 | 0xAC | 0xBC => {
-                    self.ldy(&opcode.mode);
-                }
+                0xA0 | 0xA4 | 0xB4 | 0xAC | 0xBC => self.ldy(&opcode.mode),
 
                 // LSR.
                 0x4A => self.lsr_accumulator(),
-                0x46 | 0x56 | 0x4E | 0x5E => {
-                    self.lsr(&opcode.mode);
-                }
+                0x46 | 0x56 | 0x4E | 0x5E => self.lsr(&opcode.mode),
 
                 // NOP.
                 0xEA => {}
@@ -420,15 +402,11 @@ impl CPU {
 
                 // ROL.
                 0x2A => self.rol_accumulator(),
-                0x26 | 0x36 | 0x2E | 0x3E => {
-                    self.rol(&opcode.mode);
-                }
+                0x26 | 0x36 | 0x2E | 0x3E => self.rol(&opcode.mode),
 
                 // ROR.
                 0x6A => self.ror_accumulator(),
-                0x66 | 0x76 | 0x6E | 0x7E => {
-                    self.ror(&opcode.mode);
-                }
+                0x66 | 0x76 | 0x6E | 0x7E => self.ror(&opcode.mode),
 
                 // RTI.
                 0x40 => self.rti(),
@@ -456,14 +434,10 @@ impl CPU {
                 }
 
                 // STX.
-                0x86 | 0x96 | 0x8E => {
-                    self.stx(&opcode.mode);
-                }
+                0x86 | 0x96 | 0x8E => self.stx(&opcode.mode),
 
                 // STY.
-                0x84 | 0x94 | 0x8C => {
-                    self.sty(&opcode.mode);
-                }
+                0x84 | 0x94 | 0x8C => self.sty(&opcode.mode),
 
                 // TAX.
                 0xAA => self.tax(),
@@ -494,6 +468,11 @@ impl CPU {
                 // ANC.
                 0x0B | 0x2B => self.anc(),
 
+                // DCP.
+                0xC7 | 0xD7 | 0xCF | 0xDF | 0xDB | 0xD3 | 0xC3 => {
+                    self.dcp(&opcode.mode);
+                }
+
                 // LXA.
                 0xAB => self.lxa(),
 
@@ -509,6 +488,12 @@ impl CPU {
 
                 // SAX.
                 0x83 | 0x87 | 0x8F | 0x97 => self.sax(&opcode.mode),
+
+                // SBX.
+                0xCB => self.sbx(),
+
+                // SHA.
+                0x93 | 0x9F => self.sha(&opcode.mode),
 
                 _ => todo!("{:02x} {}", opcode.code, opcode.mnemonic),
             }
@@ -1329,6 +1314,23 @@ impl CPU {
         }
     }
 
+    // DCP: Decrement.
+    //
+    // Subtract 1 from memory (without borrow).
+    fn dcp(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let mut data = self.mem_read_byte(addr);
+
+        data = data.wrapping_sub(1);
+        self.mem_write_byte(addr, data);
+
+        if data <= self.a {
+            self.set_carry_flag();
+        }
+
+        self.update_zero_and_negative_flags(self.a.wrapping_sub(data));
+    }
+
     // IGN: Ignore.
     //
     // Reads from memory at the specified address and ignores the value. Affects
@@ -1361,6 +1363,37 @@ impl CPU {
     fn sax(&mut self, mode: &AddressingMode) {
         let data = self.a & self.x;
         let addr = self.get_operand_address(mode);
+        self.mem_write_byte(addr, data);
+    }
+
+    // SBX: Subtract X.
+    //
+    // AND X register with accumulator and store result in X register, then
+    // subtract byte from X register (without borrow).
+    fn sbx(&mut self) {
+        let data = self.mem_read_byte(self.pc);
+
+        let mut result = self.a & self.x;
+        result = result.wrapping_sub(data);
+
+        if data <= result {
+            self.set_carry_flag();
+        }
+        self.update_zero_and_negative_flags(result);
+
+        self.x = result;
+    }
+
+    // SHA.
+    //
+    // AND X register with accumulator then AND result with 7 and store in
+    // memory.
+    fn sha(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+
+        let mut data = self.a & self.x;
+        data &= 7;
+
         self.mem_write_byte(addr, data);
     }
 

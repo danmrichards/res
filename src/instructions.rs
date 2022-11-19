@@ -186,6 +186,13 @@ lazy_static! {
         OpCode::new(0x4B, "*ASR", 2, 2, AddressingMode::Immediate),
         OpCode::new(0x0B, "*ANC", 2, 2, AddressingMode::Immediate),
         OpCode::new(0x2B, "*ANC", 2, 2, AddressingMode::Immediate),
+        OpCode::new(0xC7, "*DCP", 2, 5, AddressingMode::ZeroPage),
+        OpCode::new(0xD7, "*DCP", 2, 6, AddressingMode::ZeroPageX),
+        OpCode::new(0xCF, "*DCP", 3, 6, AddressingMode::Absolute),
+        OpCode::new(0xDF, "*DCP", 3, 7, AddressingMode::AbsoluteX),
+        OpCode::new(0xDB, "*DCP", 3, 7, AddressingMode::AbsoluteY),
+        OpCode::new(0xD3, "*DCP", 2, 8, AddressingMode::IndirectY),
+        OpCode::new(0xC3, "*DCP", 2, 8, AddressingMode::IndirectX),
         OpCode::new(0xAB, "*LXA", 2, 2, AddressingMode::Immediate),
         OpCode::new(0x04, "*NOP", 2, 3, AddressingMode::ZeroPage),
         OpCode::new(0x14, "*NOP", 2, 4, AddressingMode::ZeroPageX),
@@ -218,6 +225,9 @@ lazy_static! {
         OpCode::new(0x87, "*SAX", 2, 3, AddressingMode::ZeroPage),
         OpCode::new(0x8F, "*SAX", 3, 4, AddressingMode::Absolute),
         OpCode::new(0x97, "*SAX", 2, 4, AddressingMode::ZeroPageY),
+        OpCode::new(0xCB, "*SBX", 2, 2, AddressingMode::Immediate),
+        OpCode::new(0x93, "*SHA", 2, 6, AddressingMode::IndirectY),
+        OpCode::new(0x9F, "*SHA", 3, 5, AddressingMode::AbsoluteY),
     ];
 
     pub static ref OPCODES: HashMap<u8, &'static OpCode> = {
