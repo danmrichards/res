@@ -485,15 +485,30 @@ impl CPU {
 
                 // Unofficial/undocumented opcodes.
 
+                // AAR.
+                0x6B => self.aar(),
+
+                // ASR.
+                0x4B => self.asr(),
+
+                // ANC.
+                0x0B | 0x2B => self.anc(),
+
+                // LXA.
+                0xAB => self.lxa(),
+
                 // NOP (IGN).
                 0x04 | 0x44 | 0x64 | 0x14 | 0x34 | 0x54 | 0x74 | 0xD4 | 0xF4 | 0x0C | 0x1C
                 | 0x3C | 0x5C | 0x7C | 0xDC | 0xFC => self.ign(&opcode.mode),
 
                 // NOP (unofficial).
-                0x1A | 0x3A | 0x5A | 0x7A | 0xDA | 0xFA => {},
+                0x1A | 0x3A | 0x5A | 0x7A | 0xDA | 0xFA => {}
 
                 // NOP (SKB).
                 0x80 | 0x82 | 0x89 | 0xC2 | 0xE2 => self.skb(),
+
+                // SAX.
+                0x83 | 0x87 | 0x8F | 0x97 => self.sax(&opcode.mode),
 
                 _ => todo!("{:02x} {}", opcode.code, opcode.mnemonic),
             }
@@ -1256,6 +1271,64 @@ impl CPU {
         self.set_accumulator(self.y);
     }
 
+    // AAR: AND accumulator rotate.
+    //
+    // AND byte with accumulator, then rotate one bit right in accumulator.
+    fn aar(&mut self) {
+        let data = self.mem_read_byte(self.pc);
+
+        self.set_accumulator(data & self.a);
+        self.ror_accumulator();
+
+        let acc = self.a;
+        let bit_five_set = acc & 0b00010000 != 0;
+        let bit_six_set = acc & 0b00100000 != 0;
+
+        // If both bits are 1: set C, clear V.
+        // If both bits are 0: clear C and V.
+        // If only bit 5 is 1: set V, clear C.
+        // If only bit 6 is 1: set C and V.
+        if bit_five_set && bit_six_set {
+            self.set_carry_flag();
+            self.status &= 0b1011111;
+        } else if !bit_five_set && !bit_six_set {
+            self.unset_carry_flag();
+            self.status &= 0b1011111;
+        } else if bit_five_set && !bit_six_set {
+            self.unset_carry_flag();
+            self.status |= 0b01000000;
+        } else if !bit_five_set && bit_six_set {
+            self.set_carry_flag();
+            self.status |= 0b01000000;
+        }
+
+        self.update_zero_and_negative_flags(acc);
+    }
+
+    // ASR: AND accumulator shift-right.
+    //
+    // AND byte with accumulator, then shift right one bit in accumulator.
+    fn asr(&mut self) {
+        let data = self.mem_read_byte(self.pc);
+
+        self.set_accumulator(data & self.a);
+        self.lsr_accumulator();
+    }
+
+    // ANC: AND
+    //
+    // AND byte with accumulator. If result is negative then carry is set.
+    fn anc(&mut self) {
+        let data = self.mem_read_byte(self.pc);
+        self.set_accumulator(data & self.a);
+
+        if self.status & 0b10000000 != 0 {
+            self.set_carry_flag();
+        } else {
+            self.unset_carry_flag();
+        }
+    }
+
     // IGN: Ignore.
     //
     // Reads from memory at the specified address and ignores the value. Affects
@@ -1265,11 +1338,30 @@ impl CPU {
         self.mem_read_byte(addr);
     }
 
+    // LXA: AND accumulator load X.
+    //
+    // AND byte with accumulator, then transfer accumulator to X register.
+    fn lxa(&mut self) {
+        let data = self.mem_read_byte(self.pc);
+        self.set_accumulator(data & self.a);
+
+        self.tax();
+    }
+
     // SKB: Skip byte.
     //
     // Reads an immediate byte and skips it.
     fn skb(&self) {
         self.mem_read_byte(self.pc);
+    }
+
+    // SAX: Store X AND accumulator.
+    //
+    // AND X register with accumulator and store result in memory.
+    fn sax(&mut self, mode: &AddressingMode) {
+        let data = self.a & self.x;
+        let addr = self.get_operand_address(mode);
+        self.mem_write_byte(addr, data);
     }
 
     // Adds data to the accumulator and sets the CPU status accordingly.
