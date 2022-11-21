@@ -345,7 +345,9 @@ impl CPU {
                 }
 
                 // INC.
-                0xE6 | 0xF6 | 0xEE | 0xFE => self.inc(&opcode.mode),
+                0xE6 | 0xF6 | 0xEE | 0xFE => {
+                    self.inc(&opcode.mode);
+                },
 
                 // INX.
                 0xE8 => self.inx(),
@@ -471,6 +473,11 @@ impl CPU {
                 // DCP.
                 0xC7 | 0xD7 | 0xCF | 0xDF | 0xDB | 0xD3 | 0xC3 => {
                     self.dcp(&opcode.mode);
+                }
+
+                // ISB.
+                0xe7 | 0xf7 | 0xef | 0xff | 0xfb | 0xe3 | 0xf3 => {
+                    self.isb(&opcode.mode);
                 }
 
                 // LXA.
@@ -850,7 +857,7 @@ impl CPU {
     //
     // Adds one to the value held at a specified memory location setting the
     // zero and negative flags as appropriate.
-    fn inc(&mut self, mode: &AddressingMode) {
+    fn inc(&mut self, mode: &AddressingMode) -> u8 {
         let addr = self.get_operand_address(mode);
 
         let param = self.mem_read_byte(addr);
@@ -859,6 +866,8 @@ impl CPU {
         self.mem_write_byte(addr, result);
 
         self.update_zero_and_negative_flags(result);
+
+        result
     }
 
     // INX: Increment X register.
@@ -1338,6 +1347,15 @@ impl CPU {
     fn ign(&self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.mem_read_byte(addr);
+    }
+
+    // ISB.
+    //
+    // Increase memory by one, then subtract memory from accumulator (with
+    // borrow).
+    fn isb(&mut self, mode: &AddressingMode) {
+        let data = self.inc(mode);
+        self.add_to_accumulator(((data as i8).wrapping_neg().wrapping_sub(1)) as u8);
     }
 
     // LXA: AND accumulator load X.
