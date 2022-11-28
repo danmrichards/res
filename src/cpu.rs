@@ -410,7 +410,9 @@ impl CPU {
 
                 // ROR.
                 0x6A => self.ror_accumulator(),
-                0x66 | 0x76 | 0x6E | 0x7E => self.ror(&opcode.mode),
+                0x66 | 0x76 | 0x6E | 0x7E => {
+                    self.ror(&opcode.mode);
+                }
 
                 // RTI.
                 0x40 => self.rti(),
@@ -514,8 +516,16 @@ impl CPU {
                     self.rla(&opcode.mode)
                 },
 
+                // RRA.
+                0x67 | 0x77 | 0x6F | 0x7F | 0x7B | 0x63 |0x73=> {
+                    self.rra(&opcode.mode)
+                },
+
                 // SAX.
                 0x83 | 0x87 | 0x8F | 0x97 => self.sax(&opcode.mode),
+
+                // SBC (unofficial).
+                0xEB => self.sbc(&opcode.mode),
 
                 // SBX.
                 0xCB => self.sbx(),
@@ -1135,7 +1145,7 @@ impl CPU {
     // Move each of the bits in the memory value one place to the right. Bit 7
     // is filled with the current value of the carry flag whilst the old bit 0
     // becomes the new carry flag value.
-    fn ror(&mut self, mode: &AddressingMode) {
+    fn ror(&mut self, mode: &AddressingMode) -> u8{
         let addr = self.get_operand_address(mode);
         let mut data = self.mem_read_byte(addr);
 
@@ -1155,6 +1165,8 @@ impl CPU {
         self.mem_write_byte(addr, data);
 
         self.update_zero_and_negative_flags(data);
+
+        data
     }
 
     // RTI: Return from Interrupt
@@ -1423,11 +1435,20 @@ impl CPU {
         self.mem_read_byte(self.pc);
     }
 
-    // RLA: Rotate AND.
+    // RLA: Rotate left AND.
     //
     // Rotate one bit left in memory, then AND accumulator with memory
     fn rla(&mut self, mode: &AddressingMode) {
         let data = self.rol(mode);
+        self.set_accumulator(data & self.a);
+    }
+
+    // RLA: Rotate right AND.
+    //
+    // Rotate one bit right in memory, then AND accumulator with memory (with
+    // carry).
+    fn rra(&mut self, mode: &AddressingMode) {
+        let data = self.ror(mode);
         self.set_accumulator(data & self.a);
     }
 
