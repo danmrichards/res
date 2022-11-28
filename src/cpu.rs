@@ -404,7 +404,9 @@ impl CPU {
 
                 // ROL.
                 0x2A => self.rol_accumulator(),
-                0x26 | 0x36 | 0x2E | 0x3E => self.rol(&opcode.mode),
+                0x26 | 0x36 | 0x2E | 0x3E => {
+                    self.rol(&opcode.mode);
+                },
 
                 // ROR.
                 0x6A => self.ror_accumulator(),
@@ -480,18 +482,37 @@ impl CPU {
                     self.isb(&opcode.mode);
                 }
 
+                // HLT.
+                0x02 | 0x12 | 0x22 | 0x32 | 0x42 | 0x52 | 0x62 | 0x72 | 0x92 |
+                0xB2 | 0xD2 | 0xF2 => {
+                    return
+                },
+
+                // LAS.
+                0xBB => self.las(&opcode.mode),
+
+                // LAX.
+                0xA7 | 0xB7 | 0xAF | 0xBF | 0xA3 | 0xB3 => self.lax(&opcode.mode),
+                
                 // LXA.
                 0xAB => self.lxa(),
 
                 // NOP (IGN).
-                0x04 | 0x44 | 0x64 | 0x14 | 0x34 | 0x54 | 0x74 | 0xD4 | 0xF4 | 0x0C | 0x1C
-                | 0x3C | 0x5C | 0x7C | 0xDC | 0xFC => self.ign(&opcode.mode),
+                0x04 | 0x44 | 0x64 | 0x14 | 0x34 | 0x54 | 0x74 | 0xD4 | 0xF4 | 
+                0x0C | 0x1C | 0x3C | 0x5C | 0x7C | 0xDC | 0xFC => {
+                    self.ign(&opcode.mode)
+                },
 
                 // NOP (unofficial).
                 0x1A | 0x3A | 0x5A | 0x7A | 0xDA | 0xFA => {}
 
                 // NOP (SKB).
                 0x80 | 0x82 | 0x89 | 0xC2 | 0xE2 => self.skb(),
+
+                // RLA
+                0x27 | 0x37 | 0x2F | 0x3F | 0x3B | 0x23 | 0x33 => {
+                    self.rla(&opcode.mode)
+                },
 
                 // SAX.
                 0x83 | 0x87 | 0x8F | 0x97 => self.sax(&opcode.mode),
@@ -1062,7 +1083,7 @@ impl CPU {
     // Move each of the bits in the memory value one place to the left. Bit 0 is
     // filled with the current value of the carry flag whilst the old bit 7
     // becomes the new carry flag value.
-    fn rol(&mut self, mode: &AddressingMode) {
+    fn rol(&mut self, mode: &AddressingMode) -> u8 {
         let addr = self.get_operand_address(mode);
         let mut data = self.mem_read_byte(addr);
 
@@ -1082,6 +1103,8 @@ impl CPU {
         self.mem_write_byte(addr, data);
 
         self.update_zero_and_negative_flags(data);
+
+        data
     }
 
     // ROR: Rotate Right
@@ -1358,6 +1381,31 @@ impl CPU {
         self.add_to_accumulator(((data as i8).wrapping_neg().wrapping_sub(1)) as u8);
     }
 
+    // LAS: AND stack pointer.
+    //
+    // AND memory with stack pointer, transfer result to accumulator, X register
+    // and stack pointer.
+    fn las(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let mut data = self.mem_read_byte(addr);
+
+        data &= self.sp;
+        self.a = data;
+        self.x = data;
+        self.sp = data;
+
+        self.update_zero_and_negative_flags(data);
+    }
+
+    // LAX: Load accumulator and X register with memory.
+    fn lax(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let data = self.mem_read_byte(addr);
+
+        self.set_accumulator(data);
+        self.x = data;
+    }
+
     // LXA: AND accumulator load X.
     //
     // AND byte with accumulator, then transfer accumulator to X register.
@@ -1373,6 +1421,14 @@ impl CPU {
     // Reads an immediate byte and skips it.
     fn skb(&self) {
         self.mem_read_byte(self.pc);
+    }
+
+    // RLA: Rotate AND.
+    //
+    // Rotate one bit left in memory, then AND accumulator with memory
+    fn rla(&mut self, mode: &AddressingMode) {
+        let data = self.rol(mode);
+        self.set_accumulator(data & self.a);
     }
 
     // SAX: Store X AND accumulator.
