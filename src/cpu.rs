@@ -278,7 +278,9 @@ impl CPU {
 
                 // ASL.
                 0x0A => self.asl_implied(),
-                0x06 | 0x16 | 0x0E | 0x1E => self.asl(&opcode.mode),
+                0x06 | 0x16 | 0x0E | 0x1E => {
+                    self.asl(&opcode.mode);
+                },
 
                 // BCC.
                 0x90 => self.bcc(),
@@ -380,7 +382,9 @@ impl CPU {
 
                 // LSR.
                 0x4A => self.lsr_accumulator(),
-                0x46 | 0x56 | 0x4E | 0x5E => self.lsr(&opcode.mode),
+                0x46 | 0x56 | 0x4E | 0x5E => {
+                    self.lsr(&opcode.mode);
+                },
 
                 // NOP.
                 0xEA => {}
@@ -533,6 +537,22 @@ impl CPU {
                 // SHA.
                 0x93 | 0x9F => self.sha(&opcode.mode),
 
+                // SLO.
+                0x07 | 0x17 | 0x0F | 0x1F | 0x1B | 0x03 | 0x13 => {
+                    self.slo(&opcode.mode);
+                }
+
+                // SRE.
+                0x47 | 0x57 | 0x4F | 0x5F | 0x5B | 0x43 | 0x53 => {
+                    self.sre(&opcode.mode);
+                }
+
+                // SHX.
+                0x9E => self.shx(&opcode.mode),
+
+                // SHY.
+                0x9C => self.shy(&opcode.mode),
+
                 _ => todo!("{:02x} {}", opcode.code, opcode.mnemonic),
             }
 
@@ -662,7 +682,7 @@ impl CPU {
     // this operation is to multiply the memory contents by 2 (ignoring 2's
     // complement considerations), setting the carry if the result will not fit
     // in 8 bits.
-    fn asl(&mut self, mode: &AddressingMode) {
+    fn asl(&mut self, mode: &AddressingMode) -> u8 {
         let addr = self.get_operand_address(mode);
 
         let mut data = self.mem_read_byte(addr);
@@ -677,6 +697,8 @@ impl CPU {
         self.mem_write_byte(addr, data);
 
         self.update_zero_and_negative_flags(data);
+
+        data
     }
 
     // BCC: Branch if Carry Clear.
@@ -994,7 +1016,7 @@ impl CPU {
     //
     // Each of the bits in memory is shifted one place to the right. The bit
     // that was in bit 0 is shifted into the carry flag. Bit 7 is set to zero.
-    fn lsr(&mut self, mode: &AddressingMode) {
+    fn lsr(&mut self, mode: &AddressingMode) -> u8 {
         let addr = self.get_operand_address(mode);
 
         let mut data = self.mem_read_byte(addr);
@@ -1009,6 +1031,8 @@ impl CPU {
 
         self.mem_write_byte(addr, data);
         self.update_zero_and_negative_flags(data);
+
+        data
     }
 
     // ORA: Logical Inclusive OR
@@ -1490,6 +1514,46 @@ impl CPU {
         data &= 7;
 
         self.mem_write_byte(addr, data);
+    }
+
+    // SLO.
+    //
+    // Shift left one bit in memory, then OR accumulator with memory.
+    fn slo(&mut self, mode: &AddressingMode) {
+        let data = self.asl(mode);
+        self.set_accumulator(data | self.a);
+    }
+
+    // SRE.
+    //
+    // Shift right one bit in memory, then EOR accumulator with memory.
+    fn sre(&mut self, mode: &AddressingMode) {
+        let data = self.lsr(mode);
+        self.set_accumulator(data ^ self.a);
+    }
+
+    // SHX.
+    //
+    // AND X register with the high byte of the target address of the argument
+    // + 1. Store the result in memory.
+    fn shx(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let bytes = addr.to_le_bytes();
+
+        let result = self.x & bytes[0].wrapping_add(1);
+        self.mem_write_byte(addr, result);
+    }
+
+    // SHY.
+    //
+    // AND Y register with the high byte of the target address of the argument
+    // + 1. Store the result in memory.
+    fn shy(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let bytes = addr.to_le_bytes();
+
+        let result = self.y & bytes[0].wrapping_add(1);
+        self.mem_write_byte(addr, result);
     }
 
     // Adds data to the accumulator and sets the CPU status accordingly.

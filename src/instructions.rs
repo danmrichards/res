@@ -269,6 +269,22 @@ lazy_static! {
         OpCode::new(0xCB, "*SBX", 2, 2, AddressingMode::Immediate),
         OpCode::new(0x93, "*SHA", 2, 6, AddressingMode::IndirectY),
         OpCode::new(0x9F, "*SHA", 3, 5, AddressingMode::AbsoluteY),
+        OpCode::new(0x07, "*SLO", 2, 5, AddressingMode::ZeroPage),
+        OpCode::new(0x17, "*SLO", 2, 6, AddressingMode::ZeroPageX),
+        OpCode::new(0x0F, "*SLO", 3, 6, AddressingMode::Absolute),
+        OpCode::new(0x1F, "*SLO", 3, 7, AddressingMode::AbsoluteX),
+        OpCode::new(0x1B, "*SLO", 3, 7, AddressingMode::AbsoluteY),
+        OpCode::new(0x03, "*SLO", 2, 8, AddressingMode::IndirectX),
+        OpCode::new(0x13, "*SLO", 2, 8, AddressingMode::IndirectY),
+        OpCode::new(0x47, "*SRE", 2, 5, AddressingMode::ZeroPage),
+        OpCode::new(0x57, "*SRE", 2, 6, AddressingMode::ZeroPageX),
+        OpCode::new(0x4F, "*SRE", 3, 6, AddressingMode::Absolute),
+        OpCode::new(0x5F, "*SRE", 3, 7, AddressingMode::AbsoluteX),
+        OpCode::new(0x5B, "*SRE", 3, 7, AddressingMode::AbsoluteY),
+        OpCode::new(0x43, "*SRE", 2, 8, AddressingMode::IndirectX),
+        OpCode::new(0x53, "*SRE", 2, 8, AddressingMode::IndirectY),
+        OpCode::new(0x9E, "*SHX", 3, 5, AddressingMode::AbsoluteY),
+        OpCode::new(0x9C, "*SHY", 3, 5, AddressingMode::AbsoluteX),
     ];
 
     pub static ref OPCODES: HashMap<u8, &'static OpCode> = {
