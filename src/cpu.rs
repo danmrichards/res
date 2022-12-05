@@ -966,11 +966,9 @@ impl CPU {
     // negative flags as appropriate.
     fn lda(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
+        let data = self.mem_read_byte(addr);
 
-        let param = self.mem_read_byte(addr);
-        self.a = param;
-
-        self.update_zero_and_negative_flags(self.a);
+        self.set_accumulator(data);
     }
 
     // LDX: Load X Register
@@ -1475,11 +1473,11 @@ impl CPU {
 
     // RLA: Rotate right AND.
     //
-    // Rotate one bit right in memory, then AND accumulator with memory (with
+    // Rotate one bit right in memory, then add memory to accumulator (with
     // carry).
     fn rra(&mut self, mode: &AddressingMode) {
         let data = self.ror(mode);
-        self.set_accumulator(data & self.a);
+        self.add_to_accumulator(data);
     }
 
     // SAX: Store X AND accumulator.
@@ -1817,7 +1815,7 @@ mod test {
             println!("{}", trace(cpu));
         });
 
-        // let cpu_trace = result.join("\n");
-        // println!("{}", cpu_trace);
+        let cpu_trace = result.join("\n");
+        println!("{}", cpu_trace);
     }
 }
