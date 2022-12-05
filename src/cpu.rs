@@ -1708,6 +1708,8 @@ mod test {
     use crate::cartridge::test;
     use crate::cartridge::Rom;
     use crate::trace::trace;
+    use std::fs::File;
+    use std::io::{BufReader, BufRead};
 
     #[test]
     fn test_0xa9_lda_immediate_load_data() {
@@ -1801,6 +1803,7 @@ mod test {
 
     #[test]
     fn test_compare_nestest_rom() {
+        // Run test ROM to collect the trace output.
         let bytes: Vec<u8> = std::fs::read("nestest.nes").unwrap();
         let rom = Rom::new(&bytes).unwrap();
 
@@ -1812,10 +1815,15 @@ mod test {
         let mut result: Vec<String> = vec![];
         cpu.run_with_callback(|cpu| {
             result.push(trace(cpu));
-            println!("{}", trace(cpu));
         });
 
-        let cpu_trace = result.join("\n");
-        println!("{}", cpu_trace);
+        // Compare the trace output with the golden output, line-by-line.
+        let golden_file = File::open("nestest_no_cycle.log").expect("no such file");
+        let reader = BufReader::new(golden_file);
+
+        for (i, line) in reader.lines().enumerate() {
+            let line_str = line.expect("could not read line");
+            assert_eq!(result[i], line_str);
+        }
     }
 }
