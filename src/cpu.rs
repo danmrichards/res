@@ -553,6 +553,12 @@ impl CPU {
                 // SHY.
                 0x9C => self.shy(&opcode.mode),
 
+                // XAA.
+                0x8B => self.xaa(&opcode.mode),
+
+                // TAS.
+                0x9B => self.tas(&opcode.mode),
+
                 _ => todo!("{:02x} {}", opcode.code, opcode.mnemonic),
             }
 
@@ -1553,6 +1559,37 @@ impl CPU {
         let bytes = addr.to_le_bytes();
 
         let result = self.y & bytes[0].wrapping_add(1);
+        self.mem_write_byte(addr, result);
+    }
+
+    // XAA.
+    //
+    // The real 6502 has unpredictable behaviour for this opcode, because it
+    // both reads and writes the accumulator (which the 6502 was not designed
+    // to do).
+    //
+    // More or less does A = (A | magic) & X & imm. "magic" defines which bits
+    // of A "shine through".
+    fn xaa(&mut self, mode: &AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let data = self.mem_read_byte(addr);
+
+        let result = self.a & self.x & data;
+        self.set_accumulator(result)
+    }
+
+    // TAS.
+    //
+    // AND X register with accumulator and store result in stack pointer, then
+    // AND stack pointer with the high byte of the target address of the
+    // argument + 1. Store result in memory.
+    fn tas(&mut self, mode: &AddressingMode) {
+        self.sp = self.a & self.x;
+
+        let addr = self.get_operand_address(mode);
+        let bytes = addr.to_le_bytes();
+
+        let result = bytes[0].wrapping_add(1) & self.sp;
         self.mem_write_byte(addr, result);
     }
 
