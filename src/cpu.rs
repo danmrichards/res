@@ -280,7 +280,7 @@ impl CPU {
                 0x0A => self.asl_implied(),
                 0x06 | 0x16 | 0x0E | 0x1E => {
                     self.asl(&opcode.mode);
-                },
+                }
 
                 // BCC.
                 0x90 => self.bcc(),
@@ -349,7 +349,7 @@ impl CPU {
                 // INC.
                 0xE6 | 0xF6 | 0xEE | 0xFE => {
                     self.inc(&opcode.mode);
-                },
+                }
 
                 // INX.
                 0xE8 => self.inx(),
@@ -384,7 +384,7 @@ impl CPU {
                 0x4A => self.lsr_accumulator(),
                 0x46 | 0x56 | 0x4E | 0x5E => {
                     self.lsr(&opcode.mode);
-                },
+                }
 
                 // NOP.
                 0xEA => {}
@@ -410,7 +410,7 @@ impl CPU {
                 0x2A => self.rol_accumulator(),
                 0x26 | 0x36 | 0x2E | 0x3E => {
                     self.rol(&opcode.mode);
-                },
+                }
 
                 // ROR.
                 0x6A => self.ror_accumulator(),
@@ -489,25 +489,21 @@ impl CPU {
                 }
 
                 // HLT.
-                0x02 | 0x12 | 0x22 | 0x32 | 0x42 | 0x52 | 0x62 | 0x72 | 0x92 |
-                0xB2 | 0xD2 | 0xF2 => {
-                    return
-                },
+                0x02 | 0x12 | 0x22 | 0x32 | 0x42 | 0x52 | 0x62 | 0x72 | 0x92 | 0xB2 | 0xD2
+                | 0xF2 => return,
 
                 // LAS.
                 0xBB => self.las(&opcode.mode),
 
                 // LAX.
                 0xA7 | 0xB7 | 0xAF | 0xBF | 0xA3 | 0xB3 => self.lax(&opcode.mode),
-                
+
                 // LXA.
                 0xAB => self.lxa(),
 
                 // NOP (IGN).
-                0x04 | 0x44 | 0x64 | 0x14 | 0x34 | 0x54 | 0x74 | 0xD4 | 0xF4 | 
-                0x0C | 0x1C | 0x3C | 0x5C | 0x7C | 0xDC | 0xFC => {
-                    self.ign(&opcode.mode)
-                },
+                0x04 | 0x44 | 0x64 | 0x14 | 0x34 | 0x54 | 0x74 | 0xD4 | 0xF4 | 0x0C | 0x1C
+                | 0x3C | 0x5C | 0x7C | 0xDC | 0xFC => self.ign(&opcode.mode),
 
                 // NOP (unofficial).
                 0x1A | 0x3A | 0x5A | 0x7A | 0xDA | 0xFA => {}
@@ -516,14 +512,10 @@ impl CPU {
                 0x80 | 0x82 | 0x89 | 0xC2 | 0xE2 => self.skb(),
 
                 // RLA
-                0x27 | 0x37 | 0x2F | 0x3F | 0x3B | 0x23 | 0x33 => {
-                    self.rla(&opcode.mode)
-                },
+                0x27 | 0x37 | 0x2F | 0x3F | 0x3B | 0x23 | 0x33 => self.rla(&opcode.mode),
 
                 // RRA.
-                0x67 | 0x77 | 0x6F | 0x7F | 0x7B | 0x63 |0x73=> {
-                    self.rra(&opcode.mode)
-                },
+                0x67 | 0x77 | 0x6F | 0x7F | 0x7B | 0x63 | 0x73 => self.rra(&opcode.mode),
 
                 // SAX.
                 0x83 | 0x87 | 0x8F | 0x97 => self.sax(&opcode.mode),
@@ -1173,7 +1165,7 @@ impl CPU {
     // Move each of the bits in the memory value one place to the right. Bit 7
     // is filled with the current value of the carry flag whilst the old bit 0
     // becomes the new carry flag value.
-    fn ror(&mut self, mode: &AddressingMode) -> u8{
+    fn ror(&mut self, mode: &AddressingMode) -> u8 {
         let addr = self.get_operand_address(mode);
         let mut data = self.mem_read_byte(addr);
 
@@ -1709,7 +1701,7 @@ mod test {
     use crate::cartridge::Rom;
     use crate::trace::trace;
     use std::fs::File;
-    use std::io::{BufReader, BufRead};
+    use std::io::{BufRead, BufReader};
 
     #[test]
     fn test_0xa9_lda_immediate_load_data() {
