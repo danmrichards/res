@@ -1,6 +1,9 @@
 use crate::cartridge::Mirroring;
 use registers::addr::Addr;
 use registers::control::Control;
+use registers::mask::Mask;
+use registers::scroll::Scroll;
+use registers::status::Status;
 
 pub mod registers;
 
@@ -26,13 +29,19 @@ pub struct NESPPU {
     // Registers.
     pub addr: Addr,
     pub ctrl: Control,
+    pub mask: Mask,
+    pub scroll: Scroll,
+    pub status: Status,
 }
 
 pub trait PPU {
-    fn write_to_ctrl(&mut self, value: u8);
     fn write_to_addr(&mut self, value: u8);
+    fn write_to_ctrl(&mut self, value: u8);
+    fn write_to_mask(&mut self, value: u8);
+    fn write_to_scroll(&mut self, value: u8);
     fn write_data(&mut self, value: u8);
     fn read_data(&mut self) -> u8;
+    fn read_status(&mut self) -> u8; 
 }
 
 impl NESPPU {
@@ -47,6 +56,9 @@ impl NESPPU {
             buf: 0,
             addr: Addr::new(),
             ctrl: Control::new(),
+            mask: Mask::new(),
+            scroll: Scroll::new(),
+            status: Status::new(),
         }
     }
     
@@ -89,6 +101,16 @@ impl PPU for NESPPU {
     // Writes to the control register.
     fn write_to_ctrl(&mut self, value: u8) {
         self.ctrl.update(value);
+    }
+
+    // Writes to the mask register.
+    fn write_to_mask(&mut self, value: u8) {
+        self.mask.update(value);
+    }
+
+    // Writes to the scroll register.
+    fn write_to_scroll(&mut self, value: u8) {
+        self.scroll.write(value);
     }
 
     // Writes data to appropriate location based on the address register.
@@ -139,5 +161,14 @@ impl PPU for NESPPU {
             }
             _ => panic!("unexpected access to mirrored space {}", addr),
         }
+    }
+
+    // Returns the PPU status register and resets VBLANK + addr.
+    fn read_status(&mut self) -> u8 {
+        let data = self.status.snapshot();
+        self.status.reset_vblank_status();
+        self.addr.reset();
+        self.scroll.reset_latch();
+        data
     }
 }
