@@ -62,13 +62,13 @@ pub enum AddressingMode {
 
 pub trait Memory {
     // Returns the byte at the given address in memory.
-    fn mem_read_byte(&self, addr: u16) -> u8;
+    fn mem_read_byte(&mut self, addr: u16) -> u8;
 
     // Writes the data at the given address in memory.
     fn mem_write_byte(&mut self, addr: u16, data: u8);
 
     // Returns a word from memory, merged from the two bytes at pos and pos + 1.
-    fn mem_read_word(&self, pos: u16) -> u16 {
+    fn mem_read_word(&mut self, pos: u16) -> u16 {
         let lo = self.mem_read_byte(pos);
         let hi = self.mem_read_byte(pos + 1);
 
@@ -133,7 +133,7 @@ pub struct CPU {
 
 impl Memory for CPU {
     // Returns the byte at the given address in memory.
-    fn mem_read_byte(&self, addr: u16) -> u8 {
+    fn mem_read_byte(&mut self, addr: u16) -> u8 {
         self.bus.mem_read_byte(addr)
     }
 
@@ -143,7 +143,7 @@ impl Memory for CPU {
     }
 
     // Returns a word from memory, merged from the two bytes at pos and pos + 1.
-    fn mem_read_word(&self, pos: u16) -> u16 {
+    fn mem_read_word(&mut self, pos: u16) -> u16 {
         self.bus.mem_read_word(pos)
     }
 
@@ -563,7 +563,7 @@ impl CPU {
     }
     // Returns the address of the operand for a given non-immediate addressing
     // mode.
-    pub fn get_operand_mode_address(&self, mode: &AddressingMode, operand: u16) -> u16 {
+    pub fn get_operand_mode_address(&mut self, mode: &AddressingMode, operand: u16) -> u16 {
         match mode {
             AddressingMode::Immediate => operand,
 
@@ -620,7 +620,7 @@ impl CPU {
     }
 
     // Returns the address of the operand for a given addressing mode.
-    fn get_operand_address(&self, mode: &AddressingMode) -> u16 {
+    fn get_operand_address(&mut self, mode: &AddressingMode) -> u16 {
         match mode {
             AddressingMode::Immediate => self.pc,
             _ => self.get_operand_mode_address(mode, self.pc),
@@ -1399,7 +1399,7 @@ impl CPU {
     //
     // Reads from memory at the specified address and ignores the value. Affects
     // no register nor flags
-    fn ign(&self, mode: &AddressingMode) {
+    fn ign(&mut self, mode: &AddressingMode) {
         let addr = self.get_operand_address(mode);
         self.mem_read_byte(addr);
     }
@@ -1451,7 +1451,7 @@ impl CPU {
     // SKB: Skip byte.
     //
     // Reads an immediate byte and skips it.
-    fn skb(&self) {
+    fn skb(&mut self) {
         self.mem_read_byte(self.pc);
     }
 

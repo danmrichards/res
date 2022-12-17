@@ -1,5 +1,7 @@
 use crate::cartridge::Rom;
 use crate::cpu::Memory;
+use crate::ppu::NESPPU;
+use crate::ppu::PPU;
 
 // | Address range | Size  | Device                                                                  |
 // | ------------- | ----- | ----------------------------------------------------------------------- |
@@ -23,40 +25,50 @@ const PRG_END: u16 = 0xFFFF;
 // and PPU/CPU clock cycles.
 pub struct Bus {
     cpu_vram: [u8; 2048],
-    rom: Rom,
+    prg_rom: Vec<u8>,
+    ppu: NESPPU,
 }
 
 impl Bus {
     // Returns an instantiated Bus.
     pub fn new(rom: Rom) -> Self {
+        let ppu = NESPPU::new(rom.chr, rom.screen_mirroring);
+
         Bus {
             cpu_vram: [0; 2048],
-            rom,
+            prg_rom: rom.prg,
+            ppu: ppu,
         }
     }
 
     // Returns a byte from PRG ROM at the given address.
     fn read_prg(&self, mut addr: u16) -> u8 {
         addr -= PRG;
-        if self.rom.prg.len() == 0x4000 && addr >= 0x4000 {
+        if self.prg_rom.len() == 0x4000 && addr >= 0x4000 {
             // Mirror if needed
             addr = addr % 0x4000;
         }
-        self.rom.prg[addr as usize]
+        self.prg_rom[addr as usize]
     }
 }
 
 impl Memory for Bus {
-    fn mem_read_byte(&self, addr: u16) -> u8 {
+    fn mem_read_byte(&mut self, addr: u16) -> u8 {
         match addr {
             RAM..=RAM_MIRRORS_END => {
                 let mirror_down_addr = addr & 0b00000111_11111111;
                 self.cpu_vram[mirror_down_addr as usize]
             }
-            PPU_REGISTERS..=PPU_REGISTERS_MIRRORS_END => {
-                let _mirror_down_addr = addr & 0b00100000_00000111;
-                todo!("PPU is not supported yet")
+            PPU_REGISTERS | 0x2001 | 0x2003 | 0x2005 | 0x2006 | 0x4014 => {
+                panic!("Attempt to read from write-only PPU address {:x}", addr);
             }
+            0x2007 => self.ppu.read_data(),
+
+            0x2008..=PPU_REGISTERS_MIRRORS_END => {
+                let mirror_down_addr = addr & 0b00100000_00000111;
+                self.mem_read_byte(mirror_down_addr)
+            }
+
             PRG..=PRG_END => self.read_prg(addr),
             _ => {
                 println!("Ignoring mem access at {}", addr);
@@ -71,13 +83,23 @@ impl Memory for Bus {
                 let mirror_down_addr = addr & 0b11111111111;
                 self.cpu_vram[mirror_down_addr as usize] = data;
             }
-            PPU_REGISTERS..=PPU_REGISTERS_MIRRORS_END => {
-                let _mirror_down_addr = addr & 0b00100000_00000111;
-                todo!("PPU is not supported yet");
+            PPU_REGISTERS => {
+                self.ppu.write_to_ctrl(data);
             }
-            PRG..=PRG_END => {
-                panic!("Attempt to write to cartridge ROM space")
+
+            0x2006 => {
+                self.ppu.write_to_addr(data);
             }
+            0x2007 => {
+                self.ppu.write_data(data);
+            }
+
+            0x2008..=PPU_REGISTERS_MIRRORS_END => {
+                let mirror_down_addr = addr & 0b00100000_00000111;
+                self.mem_write_byte(mirror_down_addr, data);
+            }
+            0x8000..=0xFFFF => panic!("Attempt to write to Cartridge ROM space: {:x}", addr),
+
             _ => {
                 println!("Ignoring mem write-access at {}", addr);
             }

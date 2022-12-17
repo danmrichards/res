@@ -23,7 +23,7 @@ pub struct Rom {
     pub mapper: u8,
 
     // Screen mirroring mode.
-    pub screen_mirror: Mirroring,
+    pub screen_mirroring: Mirroring,
 }
 
 impl Rom {
@@ -41,7 +41,7 @@ impl Rom {
 
         let four_screen = raw[6] & 0b1000 != 0;
         let vertical_mirroring = raw[6] & 0b1 != 0;
-        let screen_mirror = match (four_screen, vertical_mirroring) {
+        let screen_mirroring = match (four_screen, vertical_mirroring) {
             (true, _) => Mirroring::FourScreen,
             (false, true) => Mirroring::Vertical,
             (false, false) => Mirroring::Horizontal,
@@ -62,7 +62,7 @@ impl Rom {
             prg: raw[prg_start..(prg_start + prg_size)].to_vec(),
             chr: raw[chr_start..(chr_start + chr_size)].to_vec(),
             mapper,
-            screen_mirror,
+            screen_mirroring,
         })
     }
 }
@@ -125,7 +125,7 @@ pub mod test {
         assert_eq!(rom.chr, vec!(2; 1 * CHR_PAGE_SIZE));
         assert_eq!(rom.prg, vec!(1; 2 * PRG_PAGE_SIZE));
         assert_eq!(rom.mapper, 3);
-        assert_eq!(rom.screen_mirror, Mirroring::Vertical);
+        assert_eq!(rom.screen_mirroring, Mirroring::Vertical);
     }
 
     #[test]
@@ -159,7 +159,7 @@ pub mod test {
         assert_eq!(rom.chr, vec!(2; 1 * CHR_PAGE_SIZE));
         assert_eq!(rom.prg, vec!(1; 2 * PRG_PAGE_SIZE));
         assert_eq!(rom.mapper, 3);
-        assert_eq!(rom.screen_mirror, Mirroring::Vertical);
+        assert_eq!(rom.screen_mirroring, Mirroring::Vertical);
     }
 
     #[test]

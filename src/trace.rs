@@ -4,7 +4,7 @@ use crate::cpu::CPU;
 use crate::instructions;
 use std::collections::HashMap;
 
-pub fn trace(cpu: &CPU) -> String {
+pub fn trace(cpu: &mut CPU) -> String {
     let ref opcodes: HashMap<u8, &'static instructions::OpCode> = *instructions::OPCODES;
 
     // Get the current opcode.
