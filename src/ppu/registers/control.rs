@@ -38,7 +38,7 @@ impl Control {
 
     // Returns the amount to increment the VRAM addr by. 
     pub fn vram_addr_increment(&self) -> u8 {
-        if self.bits & VRAM_ADD_INCREMENT != 0 {
+        if self.bits & VRAM_ADD_INCREMENT == 0 {
             1
         } else {
             32

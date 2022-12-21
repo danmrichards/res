@@ -6,6 +6,7 @@ const NOTUSED5: u8 = 0b00010000;
 const SPRITE_OVERFLOW: u8 = 0b00100000;
 const SPRITE_ZERO_HIT: u8 = 0b01000000;
 const VBLANK_STARTED: u8 = 0b10000000;
+const RESET_VBLANK_STARTED: u8 = 0b01111111;
 
 // Represents the PPU status register.
 pub struct Status {
@@ -64,7 +65,7 @@ impl Status {
     }
 
     pub fn reset_vblank_status(&mut self) {
-        self.bits |= VBLANK_STARTED
+        self.bits &= RESET_VBLANK_STARTED
     }
 
     pub fn is_in_vblank(&self) -> bool {
