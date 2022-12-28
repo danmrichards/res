@@ -153,6 +153,27 @@ impl Memory for CPU {
     }
 }
 
+mod interrupt {
+    #[derive(PartialEq, Eq)]
+    pub enum InterruptType {
+        NMI,
+    }
+
+    #[derive(PartialEq, Eq)]
+    pub(super) struct Interrupt {
+        pub(super) itype: InterruptType,
+        pub(super) vector_addr: u16,
+        pub(super) status_mask: u8,
+        pub(super) cpu_cycles: u8,
+    }
+    pub(super) const NMI: Interrupt = Interrupt {
+        itype: InterruptType::NMI,
+        vector_addr: 0xFFFA,
+        status_mask: 0b00100000,
+        cpu_cycles: 2,
+    };
+}
+
 impl CPU {
     // Returns an instantiated CPU.
     pub fn new(bus: Bus) -> Self {
@@ -257,6 +278,10 @@ impl CPU {
         let ref opcodes: HashMap<u8, &'static instructions::OpCode> = *instructions::OPCODES;
 
         loop {
+            if let Some(_nmi) = self.bus.nmi_status() {
+                self.interrupt(interrupt::NMI);
+            }
+
             callback(self);
 
             // Get the opcode at the program counter.
@@ -1745,6 +1770,28 @@ impl CPU {
         }
 
         self.pc = jump_addr;
+    }
+
+    // Handles the CPU interrupt.
+    fn interrupt(&mut self, interrupt: interrupt::Interrupt) {
+        self.stack_push_word(self.pc);
+        
+        let mut status = self.status.clone();
+
+        if interrupt.status_mask & 0b010000 == 1 {
+            status &= 0b11101111;
+        }
+        if interrupt.status_mask & 0b100000 == 1 {
+            status |= 0b00100000;
+        }
+
+        self.stack_push_byte(status);
+        
+        // Set interrupt disable flag.
+        self.status |= 0b00000100;
+
+        self.bus.tick(interrupt.cpu_cycles);
+        self.pc = self.mem_read_word(interrupt.vector_addr);
     }
 }
 

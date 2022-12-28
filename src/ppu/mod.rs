@@ -31,6 +31,9 @@ pub struct NESPPU {
     pub scroll: Scroll,
     pub status: Status,
 
+    // Is the NMI interrupt set?
+    pub nmi_interrupt: Option<bool>,
+
     // Buffer for data read from previous request.
     buf: u8,
 
@@ -73,6 +76,7 @@ impl NESPPU {
             status: Status::new(),
             scanline: 0,
             cycles: 0,
+            nmi_interrupt: None,
         }
     }
 
@@ -124,14 +128,20 @@ impl NESPPU {
         self.cycles -= 341;
         self.scanline += 1;
 
-        // VBLANK is triggered at scanline 241 (assuming the control register
-        // has been set to allow it).
-        if self.scanline == 241 && self.ctrl.vblank_nmi() {
+        // VBLANK is triggered at scanline 241.
+        if self.scanline == 241 {
             self.status.set_vblank_status(true);
-            todo!("Should trigger NMI interrupt")
+            self.status.set_sprite_zero_hit(false);
+
+            // Set the interrupt if the control register allows it.
+            if self.ctrl.vblank_nmi() {
+                self.nmi_interrupt = Some(true);
+            }
         } else if self.scanline >= 262 {
             // There are 262 scanlines per frame.
             self.scanline = 0;
+            self.nmi_interrupt = None;
+            self.status.set_sprite_zero_hit(false);
             self.status.reset_vblank_status();
             return true;
         }
@@ -148,7 +158,13 @@ impl PPU for NESPPU {
 
     // Writes to the control register.
     fn write_ctrl(&mut self, value: u8) {
+        let before_nmi_status = self.ctrl.vblank_nmi();
+        
         self.ctrl.update(value);
+
+        if !before_nmi_status && self.ctrl.vblank_nmi() && self.status.is_in_vblank() {
+            self.nmi_interrupt = Some(false);
+        }
     }
 
     // Writes to the mask register.

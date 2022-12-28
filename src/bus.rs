@@ -65,6 +65,11 @@ impl Bus {
         // it can run.
         self.ppu.tick(cycles * 3);
     }
+
+    // Returns the NMI status of the PPU.
+    pub fn nmi_status(&mut self) -> Option<bool> {
+        self.ppu.nmi_interrupt.take()
+    }
 }
 
 impl Memory for Bus {
