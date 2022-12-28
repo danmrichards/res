@@ -27,6 +27,11 @@ pub struct Bus {
     cpu_vram: [u8; 2048],
     prg_rom: Vec<u8>,
     ppu: NESPPU,
+    
+    // Tracks the number of CPU cycles. We're using a basic "catch up" technique
+    // here, running one whole instruction and calculating the "budget" of
+    // cycles for each component. Then running them to completion.
+    cycles: usize,
 }
 
 impl Bus {
@@ -38,6 +43,7 @@ impl Bus {
             cpu_vram: [0; 2048],
             prg_rom: rom.prg,
             ppu: ppu,
+            cycles: 0,
         }
     }
 
@@ -49,6 +55,15 @@ impl Bus {
             addr = addr % 0x4000;
         }
         self.prg_rom[addr as usize]
+    }
+
+    // Increments the number of cycles processed by the CPU.
+    pub fn tick(&mut self, cycles: u8) {
+        self.cycles += cycles as usize;
+
+        // PPU runs three times faster than CPU, inform it how many cycles
+        // it can run.
+        self.ppu.tick(cycles * 3);
     }
 }
 

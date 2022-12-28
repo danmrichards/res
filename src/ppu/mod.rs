@@ -33,6 +33,12 @@ pub struct NESPPU {
 
     // Buffer for data read from previous request.
     buf: u8,
+
+    // Current picture scan line
+    scanline: u16,
+
+    // Number of cycles.
+    cycles: usize,
 }
 
 pub trait PPU {
@@ -65,6 +71,8 @@ impl NESPPU {
             mask: Mask::new(),
             scroll: Scroll::new(),
             status: Status::new(),
+            scanline: 0,
+            cycles: 0,
         }
     }
 
@@ -101,6 +109,34 @@ impl NESPPU {
             (Mirroring::Horizontal, 3) => vram_index - 0x800,
             _ => vram_index,
         }
+    }
+
+    // Returns true if a frame has been completed, while incrementing the cycle
+    // count and scanline as appropriate.
+    pub fn tick(&mut self, cycles: u8) -> bool {
+        self.cycles += cycles as usize;
+
+        // Each scanline lasts for 341 PPU clock cycles.
+        if self.cycles < 341 {
+            return false
+        }
+
+        self.cycles -= 341;
+        self.scanline += 1;
+
+        // VBLANK is triggered at scanline 241 (assuming the control register
+        // has been set to allow it).
+        if self.scanline == 241 && self.ctrl.vblank_nmi() {
+            self.status.set_vblank_status(true);
+            todo!("Should trigger NMI interrupt")
+        } else if self.scanline >= 262 {
+            // There are 262 scanlines per frame.
+            self.scanline = 0;
+            self.status.reset_vblank_status();
+            return true;
+        }
+        
+        return false
     }
 }
 

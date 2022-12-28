@@ -554,6 +554,10 @@ impl CPU {
                 _ => todo!("{:02x} {}", opcode.code, opcode.mnemonic),
             }
 
+            // Inform the bus the number of CPU cycles for this operation in
+            // order for the other components to process as appropriate.
+            self.bus.tick(opcode.cycles);
+
             // Program counter needs to be incremented by the number of bytes
             // used in the opcode, if not done so elsewhere.
             if current_pc == self.pc {

@@ -44,7 +44,13 @@ impl Control {
             32
         }
     }
- 
+    
+    // Returns true if the PPU control is set to allow generation of a VBLANK
+    // interrupt.
+    pub fn vblank_nmi(&self) -> bool {
+        return self.bits & GENERATE_NMI > 0;
+    }
+
     // Sets the register to data.
     pub fn update(&mut self, data: u8) {
         self.bits = data;
