@@ -212,8 +212,15 @@ impl CPU {
     // Jumps the program to a point in memory if a given condition is true.
     fn branch(&mut self, condition: bool) {
         if condition {
+            self.bus.tick(1);
+
             let jump: i8 = self.mem_read_byte(self.pc) as i8;
             let jump_addr = self.pc.wrapping_add(1).wrapping_add(jump as u16);
+            
+            // Tick again if the program counter is jumping to the next page.
+            if self.pc.wrapping_add(1) & 0xFF00 != jump_addr & 0xFF00 {
+                self.bus.tick(1);
+            }
 
             self.pc = jump_addr;
         }
@@ -565,36 +572,37 @@ impl CPU {
             }
         }
     }
+
     // Returns the address of the operand for a given non-immediate addressing
     // mode.
-    pub fn get_operand_mode_address(&mut self, mode: &AddressingMode, operand: u16) -> u16 {
+    pub fn get_operand_mode_address(&mut self, mode: &AddressingMode, operand: u16) -> (u16, bool) {
         match mode {
-            AddressingMode::Immediate => operand,
+            AddressingMode::Immediate => (operand, false),
 
-            AddressingMode::ZeroPage => self.mem_read_byte(operand) as u16,
+            AddressingMode::ZeroPage => (self.mem_read_byte(operand) as u16, false),
 
-            AddressingMode::Absolute => self.mem_read_word(operand),
+            AddressingMode::Absolute => (self.mem_read_word(operand), false),
 
             AddressingMode::ZeroPageX => {
                 let pos = self.mem_read_byte(operand);
                 let addr = pos.wrapping_add(self.x) as u16;
-                addr
+                (addr, false)
             }
             AddressingMode::ZeroPageY => {
                 let pos = self.mem_read_byte(operand);
                 let addr = pos.wrapping_add(self.y) as u16;
-                addr
+                (addr, false)
             }
 
             AddressingMode::AbsoluteX => {
                 let base = self.mem_read_word(operand);
                 let addr = base.wrapping_add(self.x as u16);
-                addr
+                (addr, page_cross(base, addr))
             }
             AddressingMode::AbsoluteY => {
                 let base = self.mem_read_word(operand);
                 let addr = base.wrapping_add(self.y as u16);
-                addr
+                (addr, page_cross(base, addr))
             }
 
             AddressingMode::IndirectX => {
@@ -604,7 +612,7 @@ impl CPU {
                 let lo = self.mem_read_byte(ptr as u16);
                 let hi = self.mem_read_byte(ptr.wrapping_add(1) as u16);
 
-                u16::from_le_bytes([lo, hi])
+                (u16::from_le_bytes([lo, hi]), false)
             }
             AddressingMode::IndirectY => {
                 let base = self.mem_read_byte(operand);
@@ -614,7 +622,7 @@ impl CPU {
 
                 let deref_base = u16::from_le_bytes([lo, hi]);
                 let deref = deref_base.wrapping_add(self.y as u16);
-                deref
+                (deref, page_cross(deref, deref_base))
             }
 
             AddressingMode::Implied => {
@@ -623,10 +631,12 @@ impl CPU {
         }
     }
 
-    // Returns the address of the operand for a given addressing mode.
-    fn get_operand_address(&mut self, mode: &AddressingMode) -> u16 {
+    // Returns the address of the operand for a given addressing mode and if the
+    // the instruction would result in the program counter moving to the next
+    // memory page.
+    fn get_operand_address(&mut self, mode: &AddressingMode) -> (u16, bool) {
         match mode {
-            AddressingMode::Immediate => self.pc,
+            AddressingMode::Immediate => (self.pc, false),
             _ => self.get_operand_mode_address(mode, self.pc),
         }
     }
@@ -637,11 +647,15 @@ impl CPU {
     // accumulator together with the carry bit. If overflow occurs the carry bit
     // is set, this enables multiple byte addition to be performed.
     fn adc(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, page_cross) = self.get_operand_address(mode);
 
         let param = self.mem_read_byte(addr);
 
         self.add_to_accumulator(param);
+
+        if page_cross {
+            self.bus.tick(1);
+        }
     }
 
     // AND - Logical AND.
@@ -649,11 +663,15 @@ impl CPU {
     // A logical AND is performed, bit by bit, on the accumulator contents using
     // the contents of a byte of memory.
     fn and(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, page_cross) = self.get_operand_address(mode);
 
         let param = self.mem_read_byte(addr);
 
         self.set_accumulator(self.a & param);
+
+        if page_cross {
+            self.bus.tick(1);
+        }
     }
 
     // ASL: Arithmetic Shift Left
@@ -685,7 +703,7 @@ impl CPU {
     // complement considerations), setting the carry if the result will not fit
     // in 8 bits.
     fn asl(&mut self, mode: &AddressingMode) -> u8 {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
 
         let mut data = self.mem_read_byte(addr);
 
@@ -737,7 +755,7 @@ impl CPU {
     // to set or clear the zero flag, but the result is not kept. Bits 7 and 6
     // of the value from memory are copied into the N and V flags.
     fn bit(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
 
         let param = self.mem_read_byte(addr);
 
@@ -866,7 +884,7 @@ impl CPU {
     // Subtracts one from the value held at a specified memory location setting
     // the zero and negative flags as appropriate.
     fn dec(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
 
         let param = self.mem_read_byte(addr);
 
@@ -901,11 +919,15 @@ impl CPU {
     // An exclusive OR is performed, bit by bit, on the accumulator contents
     // using the contents of a byte of memory.
     fn eor(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, page_cross) = self.get_operand_address(mode);
 
         let param = self.mem_read_byte(addr);
 
-        self.set_accumulator(self.a ^ param)
+        self.set_accumulator(self.a ^ param);
+
+        if page_cross {
+            self.bus.tick(1);
+        }
     }
 
     // INC: Increment Memory
@@ -913,7 +935,7 @@ impl CPU {
     // Adds one to the value held at a specified memory location setting the
     // zero and negative flags as appropriate.
     fn inc(&mut self, mode: &AddressingMode) -> u8 {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
 
         let param = self.mem_read_byte(addr);
 
@@ -961,10 +983,14 @@ impl CPU {
     // Loads a byte of memory into the accumulator setting the zero and
     // negative flags as appropriate.
     fn lda(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, page_cross) = self.get_operand_address(mode);
         let data = self.mem_read_byte(addr);
 
         self.set_accumulator(data);
+
+        if page_cross {
+            self.bus.tick(1);
+        }
     }
 
     // LDX: Load X Register
@@ -972,12 +998,16 @@ impl CPU {
     // Loads a byte of memory into the X register setting the zero and negative
     // flags as appropriate.
     fn ldx(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, page_cross) = self.get_operand_address(mode);
 
         let param = self.mem_read_byte(addr);
         self.x = param;
 
         self.update_zero_and_negative_flags(self.x);
+
+        if page_cross {
+            self.bus.tick(1);
+        }
     }
 
     // LDY: Load Y Register
@@ -985,12 +1015,16 @@ impl CPU {
     // Loads a byte of memory into the Y register setting the zero and negative
     // flags as appropriate.
     fn ldy(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, page_cross) = self.get_operand_address(mode);
 
         let param = self.mem_read_byte(addr);
         self.y = param;
 
         self.update_zero_and_negative_flags(self.y);
+
+        if page_cross {
+            self.bus.tick(1);
+        }
     }
 
     // LSR: Logical Shift Right
@@ -1017,7 +1051,7 @@ impl CPU {
     // Each of the bits in memory is shifted one place to the right. The bit
     // that was in bit 0 is shifted into the carry flag. Bit 7 is set to zero.
     fn lsr(&mut self, mode: &AddressingMode) -> u8 {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
 
         let mut data = self.mem_read_byte(addr);
 
@@ -1040,11 +1074,15 @@ impl CPU {
     // An inclusive OR is performed, bit by bit, on the accumulator contents
     // using the contents of a byte of memory.
     fn ora(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, page_cross) = self.get_operand_address(mode);
 
         let param = self.mem_read_byte(addr);
 
-        self.set_accumulator(self.a | param)
+        self.set_accumulator(self.a | param);
+
+        if page_cross {
+            self.bus.tick(1);
+        }
     }
 
     // PHA: Push Accumulator
@@ -1118,7 +1156,7 @@ impl CPU {
     // filled with the current value of the carry flag whilst the old bit 7
     // becomes the new carry flag value.
     fn rol(&mut self, mode: &AddressingMode) -> u8 {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
         let mut data = self.mem_read_byte(addr);
 
         let carry_set = self.status & 0b00000001 != 0;
@@ -1170,7 +1208,7 @@ impl CPU {
     // is filled with the current value of the carry flag whilst the old bit 0
     // becomes the new carry flag value.
     fn ror(&mut self, mode: &AddressingMode) -> u8 {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
         let mut data = self.mem_read_byte(addr);
 
         let carry_set = self.status & 0b00000001 != 0;
@@ -1222,11 +1260,15 @@ impl CPU {
     // the carry bit is clear, this enables multiple byte subtraction to be
     // performed.
     fn sbc(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, page_cross) = self.get_operand_address(mode);
 
         let param = self.mem_read_byte(addr);
 
         self.add_to_accumulator(param.wrapping_neg().wrapping_sub(1));
+
+        if page_cross {
+            self.bus.tick(1);
+        }
     }
 
     // SEC: Set Carry Flag.
@@ -1254,7 +1296,7 @@ impl CPU {
     //
     // Stores the contents of the accumulator into memory.
     fn sta(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
         self.mem_write_byte(addr, self.a)
     }
 
@@ -1262,7 +1304,7 @@ impl CPU {
     //
     // Stores the contents of the X register into memory.
     fn stx(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
         self.mem_write_byte(addr, self.x)
     }
 
@@ -1270,7 +1312,7 @@ impl CPU {
     //
     // Stores the contents of the Y register into memory.
     fn sty(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
         self.mem_write_byte(addr, self.y)
     }
 
@@ -1386,7 +1428,7 @@ impl CPU {
     //
     // Subtract 1 from memory (without borrow).
     fn dcp(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
         let mut data = self.mem_read_byte(addr);
 
         data = data.wrapping_sub(1);
@@ -1404,8 +1446,12 @@ impl CPU {
     // Reads from memory at the specified address and ignores the value. Affects
     // no register nor flags
     fn ign(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, page_cross) = self.get_operand_address(mode);
         self.mem_read_byte(addr);
+
+        if page_cross {
+            self.bus.tick(1);
+        }
     }
 
     // ISB.
@@ -1422,7 +1468,7 @@ impl CPU {
     // AND memory with stack pointer, transfer result to accumulator, X register
     // and stack pointer.
     fn las(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
         let mut data = self.mem_read_byte(addr);
 
         data &= self.sp;
@@ -1435,7 +1481,7 @@ impl CPU {
 
     // LAX: Load accumulator and X register with memory.
     fn lax(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
         let data = self.mem_read_byte(addr);
 
         self.set_accumulator(data);
@@ -1481,7 +1527,7 @@ impl CPU {
     // AND X register with accumulator and store result in memory.
     fn sax(&mut self, mode: &AddressingMode) {
         let data = self.a & self.x;
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
         self.mem_write_byte(addr, data);
     }
 
@@ -1508,7 +1554,7 @@ impl CPU {
     // AND X register with accumulator then AND result with 7 and store in
     // memory.
     fn sha(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
 
         let mut data = self.a & self.x;
         data &= 7;
@@ -1537,7 +1583,7 @@ impl CPU {
     // AND X register with the high byte of the target address of the argument
     // + 1. Store the result in memory.
     fn shx(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
         let bytes = addr.to_le_bytes();
 
         let result = self.x & bytes[0].wrapping_add(1);
@@ -1549,7 +1595,7 @@ impl CPU {
     // AND Y register with the high byte of the target address of the argument
     // + 1. Store the result in memory.
     fn shy(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
         let bytes = addr.to_le_bytes();
 
         let result = self.y & bytes[0].wrapping_add(1);
@@ -1565,7 +1611,7 @@ impl CPU {
     // More or less does A = (A | magic) & X & imm. "magic" defines which bits
     // of A "shine through".
     fn xaa(&mut self, mode: &AddressingMode) {
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
         let data = self.mem_read_byte(addr);
 
         let result = self.a & self.x & data;
@@ -1580,7 +1626,7 @@ impl CPU {
     fn tas(&mut self, mode: &AddressingMode) {
         self.sp = self.a & self.x;
 
-        let addr = self.get_operand_address(mode);
+        let (addr, _) = self.get_operand_address(mode);
         let bytes = addr.to_le_bytes();
 
         let result = bytes[0].wrapping_add(1) & self.sp;
@@ -1621,7 +1667,7 @@ impl CPU {
     // Compares the given data with an item read from memory, then sets the
     // appropriate status flags.
     fn compare(&mut self, mode: &AddressingMode, data: u8) {
-        let addr = self.get_operand_address(mode);
+        let (addr, page_cross) = self.get_operand_address(mode);
 
         let param = self.mem_read_byte(addr);
 
@@ -1631,7 +1677,11 @@ impl CPU {
             self.unset_carry_flag();
         }
 
-        self.update_zero_and_negative_flags(data.wrapping_sub(param))
+        self.update_zero_and_negative_flags(data.wrapping_sub(param));
+
+        if page_cross {
+            self.bus.tick(1);
+        }
     }
 
     // Sets the Z (zero) and N (negative) flags on the CPU status based on the
@@ -1696,6 +1746,15 @@ impl CPU {
 
         self.pc = jump_addr;
     }
+}
+
+// Returns true if the memory addresses are on the same "page".
+//
+// NES pages are 256 bytes, so just comparing the upper byte is good enough. For
+// example, the range [0x0000 .. 0x00FF] belongs to page 0, [0x0100 .. 0x01FF]
+// belongs to page 1,
+fn page_cross(addr1: u16, addr2 : u16) -> bool {
+    addr1 & 0xFF00 != addr2 & 0xFF00
 }
 
 #[cfg(test)]
