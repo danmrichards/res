@@ -5,6 +5,8 @@ pub mod cartridge;
 pub mod cpu;
 pub mod instructions;
 pub mod ppu;
+pub mod render;
+pub mod tile;
 pub mod trace;
 
 use bus::Bus;
@@ -17,6 +19,7 @@ use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::EventPump;
+use tile::show_tile;
 
 const RNG: u16 = 0xFE;
 const LAST_PRESSED: u16 = 0xFF;
@@ -94,7 +97,7 @@ fn main() {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
-        .window("Snake game", 640, 640)
+        .window("Tile Viewer", 640, 640)
         .position_centered()
         .build()
         .unwrap();
@@ -108,26 +111,45 @@ fn main() {
         .create_texture_target(PixelFormatEnum::RGB24, 32, 32)
         .unwrap();
 
-    let bytes: Vec<u8> = std::fs::read("snake.nes").unwrap();
+    let bytes: Vec<u8> = std::fs::read("Alter_Ego.nes").unwrap();
     let rom = Rom::new(&bytes).unwrap();
 
-    let bus = Bus::new(rom);
-    let mut cpu = CPU::new(bus);
-    cpu.reset();
+    let tile_frame = show_tile(&rom.chr, 1,0);
 
-    let mut screen_state = [0 as u8; 32 * 3 * 32];
-    let mut rng = rand::thread_rng();
+    texture.update(None, &tile_frame.data, 256 * 3).unwrap();
+    canvas.copy(&texture, None, None).unwrap();
+    canvas.present();
 
-    cpu.run_with_callback(move |cpu| {
-        handle_user_input(cpu, &mut event_pump);
-        cpu.mem_write_byte(RNG, rng.gen_range(1..16));
-
-        if read_screen_state(cpu, &mut screen_state) {
-            texture.update(None, &screen_state, 32 * 3).unwrap();
-            canvas.copy(&texture, None, None).unwrap();
-            canvas.present();
+    loop {
+        for event in event_pump.poll_iter() {
+           match event {
+             Event::Quit { .. }
+             | Event::KeyDown {
+                 keycode: Some(Keycode::Escape),
+                 ..
+             } => std::process::exit(0),
+             _ => { /* do nothing */ }
+           }
         }
+     }
 
-        ::std::thread::sleep(std::time::Duration::new(0, 70_000));
-    });
+    // let bus = Bus::new(rom);
+    // let mut cpu = CPU::new(bus);
+    // cpu.reset();
+
+    // let mut screen_state = [0 as u8; 32 * 3 * 32];
+    // let mut rng = rand::thread_rng();
+
+    // cpu.run_with_callback(move |cpu| {
+    //     handle_user_input(cpu, &mut event_pump);
+    //     cpu.mem_write_byte(RNG, rng.gen_range(1..16));
+
+    //     if read_screen_state(cpu, &mut screen_state) {
+    //         texture.update(None, &screen_state, 32 * 3).unwrap();
+    //         canvas.copy(&texture, None, None).unwrap();
+    //         canvas.present();
+    //     }
+
+    //     ::std::thread::sleep(std::time::Duration::new(0, 70_000));
+    // });
 }
