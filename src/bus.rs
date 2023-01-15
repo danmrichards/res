@@ -23,7 +23,7 @@ const PRG_END: u16 = 0xFFFF;
 
 // Bus abstracts a single location data read/write, interrupts, memory mapping
 // and PPU/CPU clock cycles.
-pub struct Bus {
+pub struct Bus<'call> {
     cpu_vram: [u8; 2048],
     prg_rom: Vec<u8>,
     ppu: NESPPU,
@@ -32,11 +32,16 @@ pub struct Bus {
     // here, running one whole instruction and calculating the "budget" of
     // cycles for each component. Then running them to completion.
     cycles: usize,
+
+    gameloop_callback: Box<dyn FnMut(&NESPPU) + 'call>,
 }
 
-impl Bus {
+impl<'a> Bus<'a> {
     // Returns an instantiated Bus.
-    pub fn new(rom: Rom) -> Self {
+    pub fn new<'call, F>(rom: Rom, gameloop_callback: F) -> Bus<'call>
+    where
+        F: FnMut(&NESPPU) + 'call,
+    {
         let ppu = NESPPU::new(rom.chr, rom.screen_mirroring);
 
         Bus {
@@ -44,6 +49,7 @@ impl Bus {
             prg_rom: rom.prg,
             ppu: ppu,
             cycles: 0,
+            gameloop_callback: Box::from(gameloop_callback),
         }
     }
 
@@ -60,19 +66,29 @@ impl Bus {
     // Increments the number of cycles processed by the CPU.
     pub fn tick(&mut self, cycles: u8) {
         self.cycles += cycles as usize;
+        let start_nmi = self.ppu.nmi_interrupt.is_some();
 
         // PPU runs three times faster than CPU, inform it how many cycles
         // it can run.
         self.ppu.tick(cycles * 3);
+                
+        // Run the callback if NMI occurred during this tick.
+        if !start_nmi && self.ppu.nmi_interrupt.is_some() {
+            (self.gameloop_callback)(&self.ppu);
+        }        
     }
 
     // Returns the NMI status of the PPU.
     pub fn nmi_status(&mut self) -> Option<bool> {
         self.ppu.nmi_interrupt.take()
     }
+
+    pub fn status_register(&mut self) -> u8 {
+        self.ppu.read_status()
+    }
 }
 
-impl Memory for Bus {
+impl Memory for Bus<'_> {
     fn mem_read_byte(&mut self, addr: u16) -> u8 {
         match addr {
             RAM..=RAM_MIRRORS_END => {
@@ -80,21 +96,34 @@ impl Memory for Bus {
                 self.cpu_vram[mirror_down_addr as usize]
             }
             PPU_REGISTERS | 0x2001 | 0x2003 | 0x2005 | 0x2006 | 0x4014 => {
-                panic!("Attempt to read from write-only PPU address {:x}", addr);
+                0
             }
             0x2002 => self.ppu.read_status(),
             0x2004 => self.ppu.read_oam_data(),
             0x2007 => self.ppu.read_data(),
 
+            0x4000..=0x4015 => {
+                //ignore APU 
+                0
+            }
+
+            0x4016 => {
+                // ignore joypad 1;
+                0
+            }
+
+            0x4017 => {
+                // ignore joypad 2
+                0
+            }
             0x2008..=PPU_REGISTERS_MIRRORS_END => {
                 let mirror_down_addr = addr & 0b00100000_00000111;
                 self.mem_read_byte(mirror_down_addr)
             }
-
             PRG..=PRG_END => self.read_prg(addr),
 
             _ => {
-                println!("Ignoring mem access at {}", addr);
+                println!("Ignoring mem access at {:x}", addr);
                 0
             }
         }
@@ -132,6 +161,31 @@ impl Memory for Bus {
             0x2007 => {
                 self.ppu.write_data(data);
             }
+            0x4000..=0x4013 | 0x4015 => {
+                //ignore APU 
+            }
+
+            0x4016 => {
+                // ignore joypad 1;
+            }
+
+            0x4017 => {
+                // ignore joypad 2
+            }
+
+            0x4014 => {
+                let mut buffer: [u8; 256] = [0; 256];
+                let hi: u16 = (data as u16) << 8;
+                for i in 0..256u16 {
+                    buffer[i as usize] = self.mem_read_byte(hi + i);
+                }
+
+                self.ppu.write_oam_dma(&buffer);
+
+                // todo: handle this eventually
+                // let add_cycles: u16 = if self.cycles % 2 == 1 { 514 } else { 513 };
+                // self.tick(add_cycles); //todo this will cause weird effects as PPU will have 513/514 * 3 ticks
+            }
 
             0x2008..=PPU_REGISTERS_MIRRORS_END => {
                 let mirror_down_addr = addr & 0b00100000_00000111;
@@ -153,7 +207,7 @@ mod test {
 
     #[test]
     fn test_mem_read_write_to_ram() {
-        let mut bus = Bus::new(test::test_rom());
+        let mut bus = Bus::new(test::test_rom(), |ppu: &NESPPU| {});
         bus.mem_write_byte(0x01, 0x55);
         assert_eq!(bus.mem_read_byte(0x01), 0x55);
     }

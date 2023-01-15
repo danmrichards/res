@@ -2,6 +2,7 @@ use crate::cpu::AddressingMode;
 use crate::cpu::Memory;
 use crate::cpu::CPU;
 use crate::instructions;
+use crate::ppu::NESPPU;
 use std::collections::HashMap;
 
 pub fn trace(cpu: &mut CPU) -> String {
@@ -126,8 +127,8 @@ pub fn trace(cpu: &mut CPU) -> String {
     .to_string();
 
     format!(
-        "{:47} A:{:02x} X:{:02x} Y:{:02x} P:{:02x} SP:{:02x}",
-        asm_str, cpu.a, cpu.x, cpu.y, cpu.status, cpu.sp,
+        "{:47} A:{:02x} X:{:02x} Y:{:02x} P:{:02x} SP:{:02x} ST:{:02X}",
+        asm_str, cpu.a, cpu.x, cpu.y, cpu.status, cpu.sp, cpu.bus.status_register()
     )
     .to_ascii_uppercase()
 }
@@ -137,10 +138,11 @@ mod test {
     use super::*;
     use crate::bus::Bus;
     use crate::cartridge::test::test_rom;
+    use crate::ppu::NESPPU;
 
     #[test]
     fn test_format_trace() {
-        let mut bus = Bus::new(test_rom());
+        let mut bus = Bus::new(test_rom(), |ppu: &NESPPU| {});
         bus.mem_write_byte(100, 0xA2);
         bus.mem_write_byte(101, 0x01);
         bus.mem_write_byte(102, 0xCA);
@@ -174,7 +176,7 @@ mod test {
 
     #[test]
     fn test_format_mem_access() {
-        let mut bus = Bus::new(test_rom());
+        let mut bus = Bus::new(test_rom(), |ppu: &NESPPU| {});
         bus.mem_write_byte(100, 0x11);
         bus.mem_write_byte(101, 0x33);
         bus.mem_write_byte(0x33, 00);

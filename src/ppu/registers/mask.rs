@@ -38,34 +38,34 @@ impl Mask {
     }
 
     pub fn is_grayscale(&self) -> bool {
-        self.bits & GREYSCALE > 0
+        (self.bits & GREYSCALE) == GREYSCALE
     }
 
     pub fn leftmost_8pxl_background(&self) -> bool {
-        self.bits & LEFTMOST_8PXL_BACKGROUND > 0
+        (self.bits & LEFTMOST_8PXL_BACKGROUND) == LEFTMOST_8PXL_BACKGROUND
     }
 
     pub fn leftmost_8pxl_sprite(&self) -> bool {
-        self.bits & LEFTMOST_8PXL_SPRITE > 0
+        (self.bits & LEFTMOST_8PXL_SPRITE) == LEFTMOST_8PXL_SPRITE
     }
 
     pub fn show_background(&self) -> bool {
-        self.bits & SHOW_BACKGROUND > 0
+        (self.bits & SHOW_BACKGROUND) == SHOW_BACKGROUND
     }
 
     pub fn show_sprites(&self) -> bool {
-        self.bits & SHOW_SPRITES > 0
+        (self.bits & SHOW_SPRITES) == SHOW_SPRITES
     }
 
     pub fn emphasise(&self) -> Vec<Color> {
         let mut result = Vec::<Color>::new();
-        if self.bits & EMPHASISE_RED > 0 {
+        if (self.bits & EMPHASISE_RED) == EMPHASISE_RED {
             result.push(Color::Red);
         }
-        if self.bits & EMPHASISE_BLUE > 0 {
+        if (self.bits & EMPHASISE_BLUE) == EMPHASISE_BLUE {
             result.push(Color::Blue);
         }
-        if self.bits & EMPHASISE_GREEN > 0 {
+        if (self.bits & EMPHASISE_GREEN) == EMPHASISE_GREEN {
             result.push(Color::Green);
         }
 

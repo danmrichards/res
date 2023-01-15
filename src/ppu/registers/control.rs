@@ -38,7 +38,7 @@ impl Control {
 
     // Returns the amount to increment the VRAM addr by. 
     pub fn vram_addr_increment(&self) -> u8 {
-        if self.bits & VRAM_ADD_INCREMENT == 0 {
+        if self.bits & VRAM_ADD_INCREMENT != VRAM_ADD_INCREMENT {
             1
         } else {
             32
@@ -48,7 +48,16 @@ impl Control {
     // Returns true if the PPU control is set to allow generation of a VBLANK
     // interrupt.
     pub fn vblank_nmi(&self) -> bool {
-        return self.bits & GENERATE_NMI > 0;
+        return self.bits & GENERATE_NMI == GENERATE_NMI;
+    }
+
+    // Returns the address of the CHR ROM bank to use for background tiles.
+    pub fn bgrnd_pattern_addr(&self) -> u16 {
+        if self.bits & BACKROUND_PATTERN_ADDR != BACKROUND_PATTERN_ADDR {
+            0
+        } else {
+            0x1000
+        }
     }
 
     // Sets the register to data.

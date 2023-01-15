@@ -128,6 +128,8 @@ impl NESPPU {
         self.cycles -= 341;
         self.scanline += 1;
 
+        // println!("{}", self.scanline);
+
         // VBLANK is triggered at scanline 241.
         if self.scanline == 241 {
             self.status.set_vblank_status(true);
@@ -158,12 +160,12 @@ impl PPU for NESPPU {
 
     // Writes to the control register.
     fn write_ctrl(&mut self, value: u8) {
-        let before_nmi_status = self.ctrl.vblank_nmi();
+        let start_nmi = self.ctrl.vblank_nmi();
         
         self.ctrl.update(value);
 
-        if !before_nmi_status && self.ctrl.vblank_nmi() && self.status.is_in_vblank() {
-            self.nmi_interrupt = Some(false);
+        if !start_nmi && self.ctrl.vblank_nmi() && self.status.is_in_vblank() {
+            self.nmi_interrupt = Some(true);
         }
     }
 

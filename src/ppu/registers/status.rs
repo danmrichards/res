@@ -44,7 +44,7 @@ impl Status {
         if status {
             self.bits |= VBLANK_STARTED
         } else {
-            self.bits &= VBLANK_STARTED
+            self.bits &= !VBLANK_STARTED
         }
     }
 
@@ -52,7 +52,7 @@ impl Status {
         if status {
             self.bits |= SPRITE_ZERO_HIT
         } else {
-            self.bits &= SPRITE_ZERO_HIT
+            self.bits &= !SPRITE_ZERO_HIT
         }
     }
 
@@ -60,16 +60,16 @@ impl Status {
         if status {
             self.bits |= SPRITE_OVERFLOW
         } else {
-            self.bits &= SPRITE_OVERFLOW
+            self.bits &= !SPRITE_OVERFLOW
         }
     }
 
     pub fn reset_vblank_status(&mut self) {
-        self.bits &= RESET_VBLANK_STARTED
+        self.bits &= !RESET_VBLANK_STARTED
     }
 
     pub fn is_in_vblank(&self) -> bool {
-        self.bits & VBLANK_STARTED > 0
+        (self.bits & VBLANK_STARTED) == VBLANK_STARTED
     }
 
     pub fn snapshot(&self) -> u8 {
