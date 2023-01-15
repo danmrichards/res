@@ -1,5 +1,5 @@
 use crate::bus::Bus;
-use crate::instructions;
+use crate::{cartridge, instructions};
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -83,6 +83,15 @@ pub trait Memory {
         self.mem_write_byte(pos + 1, bytes[1]);
     }
 }
+
+const CARRY: u8 = 0b00000001;
+const ZERO: u8 = 0b00000010;
+const INTERRUPTDISABLE: u8 = 0b00000100;
+const DECIMALMODE: u8 = 0b00001000;
+const BREAK: u8 = 0b00010000;
+const BREAK2: u8 = 0b00100000;
+const OVERFLOW: u8 = 0b01000000;
+const NEGATIVE: u8 = 0b10000000;
 
 // Stack is located from $0100-$01FF.
 const STACK: u16 = 0x0100;
@@ -237,7 +246,7 @@ impl<'a> CPU<'a> {
 
             let jump: i8 = self.mem_read_byte(self.pc) as i8;
             let jump_addr = self.pc.wrapping_add(1).wrapping_add(jump as u16);
-            
+
             // Tick again if the program counter is jumping to the next page.
             if self.pc.wrapping_add(1) & 0xFF00 != jump_addr & 0xFF00 {
                 self.bus.tick(1);
@@ -751,7 +760,7 @@ impl<'a> CPU<'a> {
     // If the carry flag is clear then add the relative displacement to the
     // program counter to cause a branch to a new location.
     fn bcc(&mut self) {
-        let carry_clear = self.status & 0b00000001 == 0;
+        let carry_clear = (self.status & CARRY) != CARRY;
         self.branch(carry_clear);
     }
 
@@ -760,7 +769,7 @@ impl<'a> CPU<'a> {
     // If the carry flag is set then add the relative displacement to the
     // program counter to cause a branch to a new location.
     fn bcs(&mut self) {
-        let carry_set = self.status & 0b00000001 != 0;
+        let carry_set = (self.status & CARRY) == CARRY;
         self.branch(carry_set);
     }
 
@@ -769,7 +778,7 @@ impl<'a> CPU<'a> {
     // If the zero flag is set then add the relative displacement to the program
     // counter to cause a branch to a new location.
     fn beq(&mut self) {
-        let zero_set = self.status & 0b00000010 != 0;
+        let zero_set = (self.status & ZERO) == ZERO;
         self.branch(zero_set);
     }
 
@@ -786,23 +795,23 @@ impl<'a> CPU<'a> {
 
         // Update zero flag.
         if param & self.a == 0 {
-            self.status |= 0b00000010;
+            self.status |= ZERO;
         } else {
-            self.status &= 0b11111101;
+            self.status &= !ZERO;
         }
 
         // Copy to negative flag.
         if param & 0b10000000 > 0 {
-            self.status |= 0b10000000;
+            self.status |= NEGATIVE;
         } else {
-            self.status &= 0b01111111;
+            self.status &= !NEGATIVE;
         }
 
         // Copy to overflow flag.
         if param & 0b01000000 > 0 {
-            self.status |= 0b01000000;
+            self.status |= OVERFLOW;
         } else {
-            self.status &= 0b10111111;
+            self.status &= !OVERFLOW;
         }
     }
 
@@ -811,7 +820,7 @@ impl<'a> CPU<'a> {
     // If the negative flag is set then add the relative displacement to the
     // program counter to cause a branch to a new location.
     fn bmi(&mut self) {
-        let negative_set = self.status & 0b10000000 != 0;
+        let negative_set = (self.status & NEGATIVE) == NEGATIVE;
         self.branch(negative_set);
     }
 
@@ -820,7 +829,7 @@ impl<'a> CPU<'a> {
     // If the zero flag is clear then add the relative displacement to the
     // program counter to cause a branch to a new location.
     fn bne(&mut self) {
-        let zero_clear = self.status & 0b00000010 == 0;
+        let zero_clear = (self.status & ZERO) != ZERO;
         self.branch(zero_clear);
     }
 
@@ -829,7 +838,7 @@ impl<'a> CPU<'a> {
     // If the negative flag is clear then add the relative displacement to the
     // program counter to cause a branch to a new location.
     fn bpl(&mut self) {
-        let negative_clear = self.status & 0b10000000 == 0;
+        let negative_clear = (self.status & NEGATIVE) != NEGATIVE;
         self.branch(negative_clear);
     }
 
@@ -838,7 +847,7 @@ impl<'a> CPU<'a> {
     // If the overflow flag is clear then add the relative displacement to the
     // program counter to cause a branch to a new location.
     fn bvc(&mut self) {
-        let overflow_clear = self.status & 0b01000000 == 0;
+        let overflow_clear = (self.status & OVERFLOW) != OVERFLOW;
         self.branch(overflow_clear);
     }
 
@@ -847,7 +856,7 @@ impl<'a> CPU<'a> {
     // If the overflow flag is set then add the relative displacement to the
     // program counter to cause a branch to a new location.
     fn bvs(&mut self) {
-        let overflow_set = self.status & 0b01000000 != 0;
+        let overflow_set = (self.status & OVERFLOW) == OVERFLOW;
         self.branch(overflow_set);
     }
 
@@ -862,7 +871,7 @@ impl<'a> CPU<'a> {
     //
     // Sets the decimal mode flag to zero.
     fn cld(&mut self) {
-        self.status &= 0b11110111;
+        self.status &= !DECIMALMODE;
     }
 
     // CLI: Clear Interrupt Disable
@@ -870,14 +879,14 @@ impl<'a> CPU<'a> {
     // Clears the interrupt disable flag allowing normal interrupt requests to
     // be serviced.
     fn cli(&mut self) {
-        self.status &= 0b11111011;
+        self.status &= !INTERRUPTDISABLE;
     }
 
     // CLV: Clear Overflow Flag
     //
     // Clears the overflow flag.
     fn clv(&mut self) {
-        self.status &= 0b10111111;
+        self.status &= !OVERFLOW;
     }
 
     // CMP: Compare
@@ -1124,8 +1133,8 @@ impl<'a> CPU<'a> {
         // Set the break flags.
         let mut status = self.status;
 
-        status |= 0b00010000;
-        status |= 0b00100000;
+        status |= BREAK;
+        status |= BREAK2;
 
         self.stack_push_byte(status);
     }
@@ -1148,8 +1157,8 @@ impl<'a> CPU<'a> {
         self.status = data;
 
         // Set the break flags.
-        self.status &= 0b11101111;
-        self.status |= 0b00100000;
+        self.status &= !BREAK;
+        self.status |= BREAK2;
     }
 
     // ROL: Rotate Left
@@ -1159,7 +1168,7 @@ impl<'a> CPU<'a> {
     // becomes the new carry flag value.
     fn rol_accumulator(&mut self) {
         let mut data = self.a;
-        let carry_set = self.status & 0b00000001 != 0;
+        let carry_set = (self.status & CARRY) == CARRY;
 
         if data >> 7 == 1 {
             self.set_carry_flag();
@@ -1184,7 +1193,7 @@ impl<'a> CPU<'a> {
         let (addr, _) = self.get_operand_address(mode);
         let mut data = self.mem_read_byte(addr);
 
-        let carry_set = self.status & 0b00000001 != 0;
+        let carry_set = (self.status & CARRY) == CARRY;
 
         if data >> 7 == 1 {
             self.set_carry_flag();
@@ -1199,7 +1208,7 @@ impl<'a> CPU<'a> {
 
         self.mem_write_byte(addr, data);
 
-        self.update_zero_and_negative_flags(data);
+        self.update_negative_flags(data);
 
         data
     }
@@ -1211,7 +1220,7 @@ impl<'a> CPU<'a> {
     // becomes the new carry flag value.
     fn ror_accumulator(&mut self) {
         let mut data = self.a;
-        let carry_set = self.status & 0b00000001 != 0;
+        let carry_set = (self.status & CARRY) == CARRY;
 
         if data & 0b00000001 == 1 {
             self.set_carry_flag();
@@ -1236,7 +1245,7 @@ impl<'a> CPU<'a> {
         let (addr, _) = self.get_operand_address(mode);
         let mut data = self.mem_read_byte(addr);
 
-        let carry_set = self.status & 0b00000001 != 0;
+        let carry_set = (self.status & CARRY) == CARRY;
 
         if data & 0b00000001 == 1 {
             self.set_carry_flag();
@@ -1251,7 +1260,7 @@ impl<'a> CPU<'a> {
 
         self.mem_write_byte(addr, data);
 
-        self.update_zero_and_negative_flags(data);
+        self.update_negative_flags(data);
 
         data
     }
@@ -1265,8 +1274,8 @@ impl<'a> CPU<'a> {
         self.status = self.stack_pop_byte();
 
         // Set the break flags.
-        self.status &= 0b11101111;
-        self.status |= 0b00100000;
+        self.status &= !BREAK;
+        self.status |= BREAK2;
 
         self.pc = self.stack_pop_word();
     }
@@ -1307,14 +1316,14 @@ impl<'a> CPU<'a> {
     //
     // Set the decimal mode flag to one.
     fn sed(&mut self) {
-        self.status |= 0b00001000;
+        self.status |= DECIMALMODE;
     }
 
     // SEI: Set Interrupt Disable
     //
     // Set the interrupt disable flag to one.
     fn sei(&mut self) {
-        self.status |= 0b00000100;
+        self.status |= INTERRUPTDISABLE;
     }
 
     // STA: Store Accumulator
@@ -1410,16 +1419,16 @@ impl<'a> CPU<'a> {
         // If only bit 6 is 1: set C and V.
         if bit_five_set && bit_six_set {
             self.set_carry_flag();
-            self.status &= 0b1011111;
+            self.status &= !OVERFLOW;
         } else if !bit_five_set && !bit_six_set {
             self.unset_carry_flag();
-            self.status &= 0b1011111;
+            self.status &= !OVERFLOW;
         } else if bit_five_set && !bit_six_set {
             self.unset_carry_flag();
-            self.status |= 0b01000000;
+            self.status |= OVERFLOW;
         } else if !bit_five_set && bit_six_set {
             self.set_carry_flag();
-            self.status |= 0b01000000;
+            self.status |= OVERFLOW;
         }
 
         self.update_zero_and_negative_flags(acc);
@@ -1442,7 +1451,7 @@ impl<'a> CPU<'a> {
         let data = self.mem_read_byte(self.pc);
         self.set_accumulator(data & self.a);
 
-        if self.status & 0b10000000 != 0 {
+        if (self.status & NEGATIVE) == NEGATIVE {
             self.set_carry_flag();
         } else {
             self.unset_carry_flag();
@@ -1660,7 +1669,7 @@ impl<'a> CPU<'a> {
 
     // Adds data to the accumulator and sets the CPU status accordingly.
     fn add_to_accumulator(&mut self, data: u8) {
-        let carry = self.status & 0x01;
+        let carry = if (self.status & CARRY) == CARRY { 1 } else { 0 };
 
         let sum = self.a as u16 + data as u16 + carry as u16;
 
@@ -1675,9 +1684,9 @@ impl<'a> CPU<'a> {
 
         // Set the overflow flag if the sign bit is incorrect.
         if (data ^ result) & (result ^ self.a) & 0x80 != 0 {
-            self.status |= 0b01000000;
+            self.status |= OVERFLOW;
         } else {
-            self.status &= 0b10111111;
+            self.status &= !OVERFLOW;
         }
 
         self.set_accumulator(result);
@@ -1714,27 +1723,31 @@ impl<'a> CPU<'a> {
     fn update_zero_and_negative_flags(&mut self, result: u8) {
         // Zero flag should be set if the result is 0.
         if result == 0 {
-            self.status |= 0b00000010;
+            self.status |= ZERO;
         } else {
-            self.status &= 0b11111101;
+            self.status &= !ZERO;
         }
 
+        self.update_negative_flags(result);
+    }
+
+    fn update_negative_flags(&mut self, result: u8) {
         // Negative flag should be set if bit 7 of the result is set.
         if result >> 7 == 1 {
-            self.status |= 0b10000000;
+            self.status |= NEGATIVE;
         } else {
-            self.status &= 0b01111111;
+            self.status &= !NEGATIVE;
         }
     }
 
     // Sets the carry flag on the CPU status.
     fn set_carry_flag(&mut self) {
-        self.status |= 0b00000001;
+        self.status |= CARRY;
     }
 
     // Unsets the carry flag on the CPU status.
     fn unset_carry_flag(&mut self) {
-        self.status &= 0b11111110;
+        self.status &= !CARRY;
     }
 
     // Sets the program counter to an indirect address.
@@ -1775,20 +1788,25 @@ impl<'a> CPU<'a> {
     // Handles the CPU interrupt.
     fn interrupt(&mut self, interrupt: interrupt::Interrupt) {
         self.stack_push_word(self.pc);
-        
+
         let mut status = self.status.clone();
 
         if interrupt.status_mask & 0b010000 == 1 {
-            status &= 0b11101111;
+            status |= BREAK;
+        } else {
+            status &= !BREAK;
         }
+
         if interrupt.status_mask & 0b100000 == 1 {
-            status |= 0b00100000;
+            status |= BREAK2;
+        } else {
+            status &= !BREAK2;
         }
 
         self.stack_push_byte(status);
-        
+
         // Set interrupt disable flag.
-        self.status |= 0b00000100;
+        self.status |= INTERRUPTDISABLE;
 
         self.bus.tick(interrupt.cpu_cycles);
         self.pc = self.mem_read_word(interrupt.vector_addr);
@@ -1800,7 +1818,7 @@ impl<'a> CPU<'a> {
 // NES pages are 256 bytes, so just comparing the upper byte is good enough. For
 // example, the range [0x0000 .. 0x00FF] belongs to page 0, [0x0100 .. 0x01FF]
 // belongs to page 1,
-fn page_cross(addr1: u16, addr2 : u16) -> bool {
+fn page_cross(addr1: u16, addr2: u16) -> bool {
     addr1 & 0xFF00 != addr2 & 0xFF00
 }
 

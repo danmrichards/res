@@ -25,18 +25,16 @@ pub struct Control {
     // |                (0: read backdrop from EXT pins; 1: output color on EXT pins)
     // +--------------- Generate an NMI at the start of the
     //                  vertical blanking interval (0: off; 1: on)
-    bits: u8
+    bits: u8,
 }
 
 impl Control {
     // Returns an instantiated control register.
     pub fn new() -> Self {
-        Control {
-            bits: 0b00000000,
-        }
+        Control { bits: 0b00000000 }
     }
 
-    // Returns the amount to increment the VRAM addr by. 
+    // Returns the amount to increment the VRAM addr by.
     pub fn vram_addr_increment(&self) -> u8 {
         if self.bits & VRAM_ADD_INCREMENT != VRAM_ADD_INCREMENT {
             1
@@ -44,7 +42,7 @@ impl Control {
             32
         }
     }
-    
+
     // Returns true if the PPU control is set to allow generation of a VBLANK
     // interrupt.
     pub fn vblank_nmi(&self) -> bool {

@@ -27,7 +27,7 @@ pub struct Bus<'call> {
     cpu_vram: [u8; 2048],
     prg_rom: Vec<u8>,
     ppu: NESPPU,
-    
+
     // Tracks the number of CPU cycles. We're using a basic "catch up" technique
     // here, running one whole instruction and calculating the "budget" of
     // cycles for each component. Then running them to completion.
@@ -71,20 +71,16 @@ impl<'a> Bus<'a> {
         // PPU runs three times faster than CPU, inform it how many cycles
         // it can run.
         self.ppu.tick(cycles * 3);
-                
+
         // Run the callback if NMI occurred during this tick.
         if !start_nmi && self.ppu.nmi_interrupt.is_some() {
             (self.gameloop_callback)(&self.ppu);
-        }        
+        }
     }
 
     // Returns the NMI status of the PPU.
     pub fn nmi_status(&mut self) -> Option<bool> {
         self.ppu.nmi_interrupt.take()
-    }
-
-    pub fn status_register(&mut self) -> u8 {
-        self.ppu.read_status()
     }
 }
 
@@ -95,15 +91,13 @@ impl Memory for Bus<'_> {
                 let mirror_down_addr = addr & 0b00000111_11111111;
                 self.cpu_vram[mirror_down_addr as usize]
             }
-            PPU_REGISTERS | 0x2001 | 0x2003 | 0x2005 | 0x2006 | 0x4014 => {
-                0
-            }
+            PPU_REGISTERS | 0x2001 | 0x2003 | 0x2005 | 0x2006 | 0x4014 => 0,
             0x2002 => self.ppu.read_status(),
             0x2004 => self.ppu.read_oam_data(),
             0x2007 => self.ppu.read_data(),
 
             0x4000..=0x4015 => {
-                //ignore APU 
+                //ignore APU
                 0
             }
 
@@ -162,7 +156,7 @@ impl Memory for Bus<'_> {
                 self.ppu.write_data(data);
             }
             0x4000..=0x4013 | 0x4015 => {
-                //ignore APU 
+                //ignore APU
             }
 
             0x4016 => {

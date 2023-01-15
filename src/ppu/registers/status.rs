@@ -6,7 +6,6 @@ const NOTUSED5: u8 = 0b00010000;
 const SPRITE_OVERFLOW: u8 = 0b00100000;
 const SPRITE_ZERO_HIT: u8 = 0b01000000;
 const VBLANK_STARTED: u8 = 0b10000000;
-const RESET_VBLANK_STARTED: u8 = 0b01111111;
 
 // Represents the PPU status register.
 pub struct Status {
@@ -30,14 +29,12 @@ pub struct Status {
     //                    Set at dot 1 of line 241 (the line *after* the post-render
     //                    line); cleared after reading $2002 and at dot 1 of the
     //                    pre-render line.
-    bits: u8
+    bits: u8,
 }
 
 impl Status {
     pub fn new() -> Self {
-        Status{
-            bits: 0b00000000,
-        }
+        Status { bits: 0b00000000 }
     }
 
     pub fn set_vblank_status(&mut self, status: bool) {
@@ -65,7 +62,7 @@ impl Status {
     }
 
     pub fn reset_vblank_status(&mut self) {
-        self.bits &= !RESET_VBLANK_STARTED
+        self.bits &= !VBLANK_STARTED
     }
 
     pub fn is_in_vblank(&self) -> bool {

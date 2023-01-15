@@ -54,7 +54,7 @@ pub trait PPU {
     fn write_oam_data(&mut self, value: u8);
     fn write_oam_dma(&mut self, value: &[u8; 256]);
     fn read_data(&mut self) -> u8;
-    fn read_status(&mut self) -> u8; 
+    fn read_status(&mut self) -> u8;
     fn read_oam_data(&self) -> u8;
 }
 
@@ -80,12 +80,11 @@ impl NESPPU {
         }
     }
 
-
     // Returns an instatiated PPU with an empty ROM loaded.
     pub fn new_empty_rom() -> Self {
         NESPPU::new(vec![0; 2048], Mirroring::Horizontal)
     }
-    
+
     // Increment the VRAM address based on the control register status.
     fn increment_vram_addr(&mut self) {
         self.addr.increment(self.ctrl.vram_addr_increment());
@@ -101,11 +100,11 @@ impl NESPPU {
     fn mirror_vram_addr(&self, addr: u16) -> u16 {
         // Mirror down 0x3000-0x3EFF to 0x2000 - 0x2EFF
         let mirrored_vram = addr & 0b1011111_1111111;
-        
+
         // To VRAM vector.
         let vram_index = mirrored_vram - 0x2000;
         let name_table = vram_index / 0x400;
-        
+
         match (&self.mirroring, name_table) {
             (Mirroring::Vertical, 2) | (Mirroring::Vertical, 3) => vram_index - 0x800,
             (Mirroring::Horizontal, 2) => vram_index - 0x400,
@@ -122,7 +121,7 @@ impl NESPPU {
 
         // Each scanline lasts for 341 PPU clock cycles.
         if self.cycles < 341 {
-            return false
+            return false;
         }
 
         self.cycles -= 341;
@@ -147,8 +146,8 @@ impl NESPPU {
             self.status.reset_vblank_status();
             return true;
         }
-        
-        return false
+
+        return false;
     }
 }
 
@@ -161,7 +160,7 @@ impl PPU for NESPPU {
     // Writes to the control register.
     fn write_ctrl(&mut self, value: u8) {
         let start_nmi = self.ctrl.vblank_nmi();
-        
+
         self.ctrl.update(value);
 
         if !start_nmi && self.ctrl.vblank_nmi() && self.status.is_in_vblank() {
@@ -199,7 +198,7 @@ impl PPU for NESPPU {
     fn write_data(&mut self, value: u8) {
         let addr = self.addr.get();
         match addr {
-            0..=0x1FFF => println!("attempt to write to chr rom space {}", addr), 
+            0..=0x1FFF => println!("attempt to write to chr rom space {}", addr),
             0x2000..=0x2FFF => {
                 self.vram[self.mirror_vram_addr(addr) as usize] = value;
             }
@@ -211,8 +210,7 @@ impl PPU for NESPPU {
                 let add_mirror = addr - 0x10;
                 self.palette_table[(add_mirror - 0x3F00) as usize] = value;
             }
-            0x3F00..=0x3FFF =>
-            {
+            0x3F00..=0x3FFF => {
                 self.palette_table[(addr - 0x3F00) as usize] = value;
             }
             _ => panic!("unexpected access to mirrored space {}", addr),
@@ -224,23 +222,23 @@ impl PPU for NESPPU {
     fn read_data(&mut self) -> u8 {
         let addr = self.addr.get();
         self.increment_vram_addr();
- 
+
         match addr {
             0..=0x1FFF => {
                 let result = self.buf;
                 self.buf = self.chr_rom[addr as usize];
                 result
-            },
+            }
             0x2000..=0x2FFF => {
                 let result = self.buf;
                 self.buf = self.vram[self.mirror_vram_addr(addr) as usize];
                 result
-            },
-            0x3000..=0x3EFF => panic!("addr space 0x3000..0x3EFF is not expected to be used, requested = {} ", addr),
-            0x3F00..=0x3FFF =>
-            {
-                self.palette_table[(addr - 0x3F00) as usize]
             }
+            0x3000..=0x3EFF => panic!(
+                "addr space 0x3000..0x3EFF is not expected to be used, requested = {} ",
+                addr
+            ),
+            0x3F00..=0x3FFF => self.palette_table[(addr - 0x3F00) as usize],
             _ => panic!("unexpected access to mirrored space {}", addr),
         }
     }
@@ -453,7 +451,7 @@ pub mod test {
 
         ppu.write_oam_addr(0x10);
         assert_eq!(ppu.read_oam_data(), 0x77);
-  
+
         ppu.write_oam_addr(0x11);
         assert_eq!(ppu.read_oam_data(), 0x66);
     }

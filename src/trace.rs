@@ -2,7 +2,6 @@ use crate::cpu::AddressingMode;
 use crate::cpu::Memory;
 use crate::cpu::CPU;
 use crate::instructions;
-use crate::ppu::NESPPU;
 use std::collections::HashMap;
 
 pub fn trace(cpu: &mut CPU) -> String {
@@ -127,8 +126,8 @@ pub fn trace(cpu: &mut CPU) -> String {
     .to_string();
 
     format!(
-        "{:47} A:{:02x} X:{:02x} Y:{:02x} P:{:02x} SP:{:02x} ST:{:02X}",
-        asm_str, cpu.a, cpu.x, cpu.y, cpu.status, cpu.sp, cpu.bus.status_register()
+        "{:47} A:{:02x} X:{:02x} Y:{:02x} P:{:02x} SP:{:02x}",
+        asm_str, cpu.a, cpu.x, cpu.y, cpu.status, cpu.sp
     )
     .to_ascii_uppercase()
 }

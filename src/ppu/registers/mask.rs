@@ -21,7 +21,7 @@ pub struct Mask {
     // | | +----------- Emphasize red (green on PAL/Dendy)
     // | +------------- Emphasize green (red on PAL/Dendy)
     // +--------------- Emphasize blue
-    bits: u8
+    bits: u8,
 }
 
 pub enum Color {
@@ -32,9 +32,7 @@ pub enum Color {
 
 impl Mask {
     pub fn new() -> Self {
-        Mask {
-            bits: 0b00000000,
-        }
+        Mask { bits: 0b00000000 }
     }
 
     pub fn is_grayscale(&self) -> bool {

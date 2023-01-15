@@ -1,7 +1,7 @@
 use crate::render::frame::Frame;
 use crate::render::palette;
 
-pub fn show_tile_bank(chr_rom: &Vec<u8>, bank: usize) ->Frame {
+pub fn show_tile_bank(chr_rom: &Vec<u8>, bank: usize) -> Frame {
     assert!(bank <= 1);
 
     let mut frame = Frame::new();
