@@ -86,8 +86,8 @@ pub trait Memory {
 
 const CARRY: u8 = 0b00000001;
 const ZERO: u8 = 0b00000010;
-const INTERRUPTDISABLE: u8 = 0b00000100;
-const DECIMALMODE: u8 = 0b00001000;
+const INTERRUPT_DISABLE: u8 = 0b00000100;
+const DECIMAL_MODE: u8 = 0b00001000;
 const BREAK: u8 = 0b00010000;
 const BREAK2: u8 = 0b00100000;
 const OVERFLOW: u8 = 0b01000000;
@@ -871,7 +871,7 @@ impl<'a> CPU<'a> {
     //
     // Sets the decimal mode flag to zero.
     fn cld(&mut self) {
-        self.status &= !DECIMALMODE;
+        self.status &= !DECIMAL_MODE;
     }
 
     // CLI: Clear Interrupt Disable
@@ -879,7 +879,7 @@ impl<'a> CPU<'a> {
     // Clears the interrupt disable flag allowing normal interrupt requests to
     // be serviced.
     fn cli(&mut self) {
-        self.status &= !INTERRUPTDISABLE;
+        self.status &= !INTERRUPT_DISABLE;
     }
 
     // CLV: Clear Overflow Flag
@@ -1316,14 +1316,14 @@ impl<'a> CPU<'a> {
     //
     // Set the decimal mode flag to one.
     fn sed(&mut self) {
-        self.status |= DECIMALMODE;
+        self.status |= DECIMAL_MODE;
     }
 
     // SEI: Set Interrupt Disable
     //
     // Set the interrupt disable flag to one.
     fn sei(&mut self) {
-        self.status |= INTERRUPTDISABLE;
+        self.status |= INTERRUPT_DISABLE;
     }
 
     // STA: Store Accumulator
@@ -1806,7 +1806,7 @@ impl<'a> CPU<'a> {
         self.stack_push_byte(status);
 
         // Set interrupt disable flag.
-        self.status |= INTERRUPTDISABLE;
+        self.status |= INTERRUPT_DISABLE;
 
         self.bus.tick(interrupt.cpu_cycles);
         self.pc = self.mem_read_word(interrupt.vector_addr);
