@@ -43,8 +43,20 @@ fn bg_palette(ppu: &NESPPU, col: usize, row: usize) -> [u8; 4] {
     ]
 }
 
-// Renders a screen of pixels to the frame based on PPU state.
-pub fn render(ppu: &NESPPU, frame: &mut Frame) {
+
+// Returns the sprite palette for a given index
+fn sprite_palette(ppu: &NESPPU, idx: u8) -> [u8; 4] {
+    let start = 0x11 + (idx * 4) as usize;
+    [
+        0,
+        ppu.palette_table[start],
+        ppu.palette_table[start + 1],
+        ppu.palette_table[start + 2],
+    ]
+}
+
+// Renders the background pixels.
+fn render_bg(ppu: &NESPPU, frame: &mut Frame) {
     let bank = ppu.ctrl.bgrnd_pattern_addr();
 
     // NES screen is made up of 960 tiles (32x30).
@@ -79,4 +91,62 @@ pub fn render(ppu: &NESPPU, frame: &mut Frame) {
             }
         }
     }
+}
+
+// Renders sprites.
+fn render_sprites(ppu: &NESPPU, frame: &mut Frame) {
+    for i in (0..ppu.oam_data.len()).step_by(4).rev() {
+        let tile_idx = ppu.oam_data[i + 1] as u16;
+        let tile_x = ppu.oam_data[i + 3] as usize;
+        let tile_y = ppu.oam_data[i] as usize;
+ 
+        // Sprite orientation.
+        let flip_vertical = if ppu.oam_data[i + 2] >> 7 & 1 == 1 {
+            true
+        } else {
+            false
+        };
+        let flip_horizontal = if ppu.oam_data[i + 2] >> 6 & 1 == 1 {
+            true
+        } else {
+            false
+        };
+        let pallette_idx = ppu.oam_data[i + 2] & 0b11;
+        let sprite_palette = sprite_palette(ppu, pallette_idx);
+       
+        let bank: u16 = ppu.ctrl.sprite_pattern_addr();
+ 
+        let tile = &ppu.chr_rom[(bank + tile_idx * 16) as usize..=(bank + tile_idx * 16 + 15) as usize];
+ 
+        // Draw the 8x8 sprite.
+        for y in 0..=7 {
+            let mut upper = tile[y];
+            let mut lower = tile[y + 8];
+            for x in (0..=7).rev() {
+                let value = (1 & lower) << 1 | (1 & upper);
+                upper = upper >> 1;
+                lower = lower >> 1;
+                let rgb = match value {
+                    0 => continue,
+                    1 => palette::COLOUR_PALETTE[sprite_palette[1] as usize],
+                    2 => palette::COLOUR_PALETTE[sprite_palette[2] as usize],
+                    3 => palette::COLOUR_PALETTE[sprite_palette[3] as usize],
+                    _ => panic!("invalid sprite index"),
+                };
+                match (flip_horizontal, flip_vertical) {
+                    (false, false) => frame.set_pixel(tile_x + x, tile_y + y, rgb),
+                    (true, false) => frame.set_pixel(tile_x + 7 - x, tile_y + y, rgb),
+                    (false, true) => frame.set_pixel(tile_x + x, tile_y + 7 - y, rgb),
+                    (true, true) => frame.set_pixel(tile_x + 7 - x, tile_y + 7 - y, rgb),
+                }
+            }
+        }
+    }
+}
+
+// Renders a screen of pixels to the frame based on PPU state.
+pub fn render(ppu: &NESPPU, frame: &mut Frame) {
+    render_bg(ppu, frame);
+
+    render_sprites(ppu, frame);
 }

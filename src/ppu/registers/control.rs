@@ -58,6 +58,15 @@ impl Control {
         }
     }
 
+    // Returns the address of the CHR ROM bank to use for sprite tiles.
+    pub fn sprite_pattern_addr(&self) -> u16 {
+        if self.bits & SPRITE_PATTERN_ADDR != SPRITE_PATTERN_ADDR {
+            0
+        } else {
+            0x1000
+        }
+    }
+
     // Sets the register to data.
     pub fn update(&mut self, data: u8) {
         self.bits = data;
