@@ -104,9 +104,7 @@ impl Memory for Bus<'_> {
                 0
             }
 
-            0x4016 => {
-                self.joypad1.read()
-            }
+            0x4016 => self.joypad1.read(),
 
             0x4017 => {
                 // ignore joypad 2

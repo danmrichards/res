@@ -8,6 +8,7 @@ pub mod joypad;
 pub mod ppu;
 pub mod render;
 pub mod tile;
+pub mod trace;
 
 use bus::Bus;
 use cartridge::Rom;

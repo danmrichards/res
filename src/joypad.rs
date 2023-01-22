@@ -24,9 +24,9 @@ pub struct Joypad {
     strobe: bool,
     button_index: u8,
     button_status: u8,
- }
- 
- impl Joypad {
+}
+
+impl Joypad {
     // Returns an instantiated joypad.
     pub fn new() -> Self {
         Joypad {
@@ -45,7 +45,7 @@ pub struct Joypad {
             self.button_index = 0
         }
     }
- 
+
     // Returns the status of the current button.
     pub fn read(&mut self) -> u8 {
         if self.button_index > 7 {
@@ -56,7 +56,7 @@ pub struct Joypad {
         if !self.strobe && self.button_index <= 7 {
             self.button_index += 1;
         }
-        
+
         response
     }
 
@@ -68,9 +68,9 @@ pub struct Joypad {
             self.button_status &= !button;
         }
     }
- }
+}
 
- #[cfg(test)]
+#[cfg(test)]
 mod test {
     use super::*;
 

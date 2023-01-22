@@ -1,5 +1,5 @@
 use crate::bus::Bus;
-use crate::{cartridge, instructions};
+use crate::instructions;
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -1827,6 +1827,7 @@ mod test {
     use super::*;
     use crate::cartridge::test;
     use crate::cartridge::Rom;
+    use crate::joypad;
     use crate::ppu::NESPPU;
     use crate::trace::trace;
     use std::fs::File;
@@ -1834,7 +1835,10 @@ mod test {
 
     #[test]
     fn test_0xa9_lda_immediate_load_data() {
-        let bus = Bus::new(test::test_rom(), |ppu: &NESPPU| {});
+        let bus = Bus::new(
+            test::test_rom(),
+            |ppu: &NESPPU, joypad: &mut joypad::Joypad| {},
+        );
         let mut cpu = CPU::new(bus);
         cpu.load_and_run(vec![0xa9, 0x05, 0x00]);
 
@@ -1845,7 +1849,10 @@ mod test {
 
     #[test]
     fn test_0xa9_lda_zero_flag() {
-        let bus = Bus::new(test::test_rom(), |ppu: &NESPPU| {});
+        let bus = Bus::new(
+            test::test_rom(),
+            |ppu: &NESPPU, joypad: &mut joypad::Joypad| {},
+        );
         let mut cpu = CPU::new(bus);
         cpu.load_and_run(vec![0xa9, 0x00, 0x00]);
 
@@ -1854,7 +1861,10 @@ mod test {
 
     #[test]
     fn test_lda_from_memory() {
-        let bus = Bus::new(test::test_rom(), |ppu: &NESPPU| {});
+        let bus = Bus::new(
+            test::test_rom(),
+            |ppu: &NESPPU, joypad: &mut joypad::Joypad| {},
+        );
         let mut cpu = CPU::new(bus);
         cpu.mem_write_byte(0x10, 0x55);
 
@@ -1865,7 +1875,10 @@ mod test {
 
     #[test]
     fn test_sta() {
-        let bus = Bus::new(test::test_rom(), |ppu: &NESPPU| {});
+        let bus = Bus::new(
+            test::test_rom(),
+            |ppu: &NESPPU, joypad: &mut joypad::Joypad| {},
+        );
         let mut cpu = CPU::new(bus);
         cpu.load_and_run(vec![0xa9, 0x05, 0x85, 0x20, 0x00]);
 
@@ -1875,7 +1888,10 @@ mod test {
 
     #[test]
     fn test_0xaa_tax_move_a_to_x() {
-        let bus = Bus::new(test::test_rom(), |ppu: &NESPPU| {});
+        let bus = Bus::new(
+            test::test_rom(),
+            |ppu: &NESPPU, joypad: &mut joypad::Joypad| {},
+        );
         let mut cpu = CPU::new(bus);
         cpu.load(vec![0xaa, 0x00]);
         cpu.reset();
@@ -1888,7 +1904,10 @@ mod test {
 
     #[test]
     fn test_0xe8_inx_increment_x() {
-        let bus = Bus::new(test::test_rom(), |ppu: &NESPPU| {});
+        let bus = Bus::new(
+            test::test_rom(),
+            |ppu: &NESPPU, joypad: &mut joypad::Joypad| {},
+        );
         let mut cpu = CPU::new(bus);
         cpu.load(vec![0xe8, 0x00]);
         cpu.reset();
@@ -1901,7 +1920,10 @@ mod test {
 
     #[test]
     fn test_inx_overflow() {
-        let bus = Bus::new(test::test_rom(), |ppu: &NESPPU| {});
+        let bus = Bus::new(
+            test::test_rom(),
+            |ppu: &NESPPU, joypad: &mut joypad::Joypad| {},
+        );
         let mut cpu = CPU::new(bus);
         cpu.load(vec![0xe8, 0xe8, 0x00]);
         cpu.reset();
@@ -1915,7 +1937,10 @@ mod test {
 
     #[test]
     fn test_5_ops_working_together() {
-        let bus = Bus::new(test::test_rom(), |ppu: &NESPPU| {});
+        let bus = Bus::new(
+            test::test_rom(),
+            |ppu: &NESPPU, joypad: &mut joypad::Joypad| {},
+        );
         let mut cpu = CPU::new(bus);
         cpu.load_and_run(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
 
@@ -1928,7 +1953,7 @@ mod test {
         let bytes: Vec<u8> = std::fs::read("nestest.nes").unwrap();
         let rom = Rom::new(&bytes).unwrap();
 
-        let bus = Bus::new(rom, |ppu: &NESPPU| {});
+        let bus = Bus::new(rom, |ppu: &NESPPU, joypad: &mut joypad::Joypad| {});
         let mut cpu = CPU::new(bus);
         cpu.reset();
         cpu.pc = 0xC000;
