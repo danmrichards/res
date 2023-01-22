@@ -20,9 +20,14 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 
 #[derive(Parser, Debug)]
-#[command(version = "0.1.0", about = "A NES emulator implemented in Rust")]
+#[command(
+    version = "0.1.0",
+    about = "A NES emulator implemented in Rust",
+    long_about = "A NES emulator implemented in Rust\n\nControls:\n\nUp arrow\t= D-pad up\nDown arrow\t= D-pad down\nLeft arrow\t= D-pad left\nRight arrow\t= D-pad right\nSpace bar\t= Select\nReturn\t\t= Start\nA\t\t= A\nS\t\t= B"
+)]
 struct Args {
     /// Width of emulator window.
     #[arg(short = 'x', long, default_value_t = 256)]
@@ -92,6 +97,10 @@ fn main() {
     key_map.insert(Keycode::A, joypad::JOYPAD_BUTTON_A);
     key_map.insert(Keycode::S, joypad::JOYPAD_BUTTON_B);
 
+    // Forcing a 60FPS frame-time.
+    let frame_duration = Duration::new(0, 1000000000 / 60);
+    let mut timestamp = Instant::now();
+
     let bus = Bus::new(rom, move |ppu: &NESPPU, joypad: &mut joypad::Joypad| {
         render::render(ppu, &mut frame);
         texture
@@ -101,6 +110,7 @@ fn main() {
         canvas.copy(&texture, None, None).unwrap();
 
         canvas.present();
+
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. }
@@ -121,6 +131,15 @@ fn main() {
                 _ => { /* do nothing */ }
             }
         }
+
+        // Pause for the next frame.
+        let now = Instant::now();
+        let sleep_dur = frame_duration
+            .checked_sub(now.saturating_duration_since(timestamp))
+            .unwrap_or(Duration::new(0, 0));
+        ::std::thread::sleep(sleep_dur);
+
+        timestamp = now;
     });
 
     let mut cpu = CPU::new(bus);
