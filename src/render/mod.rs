@@ -43,7 +43,6 @@ fn bg_palette(ppu: &NESPPU, col: usize, row: usize) -> [u8; 4] {
     ]
 }
 
-
 // Returns the sprite palette for a given index
 fn sprite_palette(ppu: &NESPPU, idx: u8) -> [u8; 4] {
     let start = 0x11 + (idx * 4) as usize;
@@ -99,7 +98,7 @@ fn render_sprites(ppu: &NESPPU, frame: &mut Frame) {
         let tile_idx = ppu.oam_data[i + 1] as u16;
         let tile_x = ppu.oam_data[i + 3] as usize;
         let tile_y = ppu.oam_data[i] as usize;
- 
+
         // Sprite orientation.
         let flip_vertical = if ppu.oam_data[i + 2] >> 7 & 1 == 1 {
             true
@@ -113,11 +112,12 @@ fn render_sprites(ppu: &NESPPU, frame: &mut Frame) {
         };
         let pallette_idx = ppu.oam_data[i + 2] & 0b11;
         let sprite_palette = sprite_palette(ppu, pallette_idx);
-       
+
         let bank: u16 = ppu.ctrl.sprite_pattern_addr();
- 
-        let tile = &ppu.chr_rom[(bank + tile_idx * 16) as usize..=(bank + tile_idx * 16 + 15) as usize];
- 
+
+        let tile =
+            &ppu.chr_rom[(bank + tile_idx * 16) as usize..=(bank + tile_idx * 16 + 15) as usize];
+
         // Draw the 8x8 sprite.
         for y in 0..=7 {
             let mut upper = tile[y];

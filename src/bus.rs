@@ -1,5 +1,6 @@
 use crate::cartridge::Rom;
 use crate::cpu::Memory;
+use crate::joypad::Joypad;
 use crate::ppu::NESPPU;
 use crate::ppu::PPU;
 
@@ -27,20 +28,21 @@ pub struct Bus<'call> {
     cpu_vram: [u8; 2048],
     prg_rom: Vec<u8>,
     ppu: NESPPU,
+    joypad1: Joypad,
 
     // Tracks the number of CPU cycles. We're using a basic "catch up" technique
     // here, running one whole instruction and calculating the "budget" of
     // cycles for each component. Then running them to completion.
     cycles: usize,
 
-    gameloop_callback: Box<dyn FnMut(&NESPPU) + 'call>,
+    gameloop_callback: Box<dyn FnMut(&NESPPU, &mut Joypad) + 'call>,
 }
 
 impl<'a> Bus<'a> {
     // Returns an instantiated Bus.
     pub fn new<'call, F>(rom: Rom, gameloop_callback: F) -> Bus<'call>
     where
-        F: FnMut(&NESPPU) + 'call,
+        F: FnMut(&NESPPU, &mut Joypad) + 'call,
     {
         let ppu = NESPPU::new(rom.chr, rom.screen_mirroring);
 
@@ -48,6 +50,7 @@ impl<'a> Bus<'a> {
             cpu_vram: [0; 2048],
             prg_rom: rom.prg,
             ppu: ppu,
+            joypad1: Joypad::new(),
             cycles: 0,
             gameloop_callback: Box::from(gameloop_callback),
         }
@@ -74,7 +77,7 @@ impl<'a> Bus<'a> {
 
         // Run the callback if NMI occurred during this tick.
         if !start_nmi && self.ppu.nmi_interrupt.is_some() {
-            (self.gameloop_callback)(&self.ppu);
+            (self.gameloop_callback)(&self.ppu, &mut self.joypad1);
         }
     }
 
@@ -102,8 +105,7 @@ impl Memory for Bus<'_> {
             }
 
             0x4016 => {
-                // ignore joypad 1;
-                0
+                self.joypad1.read()
             }
 
             0x4017 => {
@@ -160,7 +162,7 @@ impl Memory for Bus<'_> {
             }
 
             0x4016 => {
-                // ignore joypad 1;
+                self.joypad1.write(data);
             }
 
             0x4017 => {
@@ -201,7 +203,7 @@ mod test {
 
     #[test]
     fn test_mem_read_write_to_ram() {
-        let mut bus = Bus::new(test::test_rom(), |ppu: &NESPPU| {});
+        let mut bus = Bus::new(test::test_rom(), |ppu: &NESPPU, joypad: &mut Joypad| {});
         bus.mem_write_byte(0x01, 0x55);
         assert_eq!(bus.mem_read_byte(0x01), 0x55);
     }
