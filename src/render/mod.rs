@@ -1,18 +1,17 @@
 pub mod frame;
 pub mod palette;
 
+use crate::cartridge::Mirroring;
 use crate::ppu::NESPPU;
 use frame::Frame;
 
 const SCREEN_SIZE: usize = 0x3C0;
 
 // Returns the background palette for a specific column and row on screen.
-fn bg_palette(ppu: &NESPPU, col: usize, row: usize) -> [u8; 4] {
+fn bg_palette(ppu: &NESPPU, attribute_table: &[u8], col: usize, row: usize) -> [u8; 4] {
     // Each background tile is one byte in the nametable space in VRAM.
     let attr_table_idx = row / 4 * 8 + col / 4;
-
-    // NOTE: Harcoded to the first name table.
-    let attr = ppu.vram[SCREEN_SIZE + attr_table_idx];
+    let attr = attribute_table[attr_table_idx];
 
     // A byte in an attribute table controls which palettes are used for 4x4
     // tile blocks or 32x32 pixels.
@@ -54,21 +53,47 @@ fn sprite_palette(ppu: &NESPPU, idx: u8) -> [u8; 4] {
     ]
 }
 
-// Renders the background pixels.
-fn render_bg(ppu: &NESPPU, frame: &mut Frame) {
+// Represents a
+struct Rect {
+    x1: usize,
+    y1: usize,
+    x2: usize,
+    y2: usize,
+}
+
+impl Rect {
+    // Returns an instantiated Rect.
+    fn new(x1: usize, y1: usize, x2: usize, y2: usize) -> Self {
+        Rect {
+            x1: x1,
+            y1: y1,
+            x2: x2,
+            y2: y2,
+        }
+    }
+}
+
+// Renders viewport scrolling.
+fn render_name_table(
+    ppu: &NESPPU,
+    frame: &mut Frame,
+    name_table: &[u8],
+    view_port: Rect,
+    shift_x: isize,
+    shift_y: isize,
+) {
     let bank = ppu.ctrl.bgrnd_pattern_addr();
 
-    // NES screen is made up of 960 tiles (32x30).
-    for i in 0..SCREEN_SIZE {
-        let tile = ppu.vram[i] as u16;
-        let col = i % 32;
-        let row = i / 32;
-        let tile = &ppu.chr_rom[(bank + tile * 16) as usize..=(bank + tile * 16 + 15) as usize];
+    let attribute_table = &name_table[0x3C0..0x400];
 
-        // Lookup the background colour palette for this column and row.
-        let palette = bg_palette(ppu, col, row);
+    for i in 0..0x3C0 {
+        let tile_column = i % 32;
+        let tile_row = i / 32;
+        let tile_idx = name_table[i] as u16;
+        let tile =
+            &ppu.chr_rom[(bank + tile_idx * 16) as usize..=(bank + tile_idx * 16 + 15) as usize];
+        let palette = bg_palette(ppu, attribute_table, tile_column, tile_row);
 
-        // Each background tile on screen is 8x8 pixels.
         for y in 0..=7 {
             let mut upper = tile[y];
             let mut lower = tile[y + 8];
@@ -77,18 +102,77 @@ fn render_bg(ppu: &NESPPU, frame: &mut Frame) {
                 let value = (1 & lower) << 1 | (1 & upper);
                 upper = upper >> 1;
                 lower = lower >> 1;
-
-                // A background tile can have up to 4 colours.
                 let rgb = match value {
                     0 => palette::COLOUR_PALETTE[ppu.palette_table[0] as usize],
                     1 => palette::COLOUR_PALETTE[palette[1] as usize],
                     2 => palette::COLOUR_PALETTE[palette[2] as usize],
                     3 => palette::COLOUR_PALETTE[palette[3] as usize],
-                    _ => panic!("invalid tile index"),
+                    _ => panic!("can't be"),
                 };
-                frame.set_pixel(col * 8 + x, row * 8 + y, rgb)
+                let pixel_x = tile_column * 8 + x;
+                let pixel_y = tile_row * 8 + y;
+
+                if pixel_x >= view_port.x1
+                    && pixel_x < view_port.x2
+                    && pixel_y >= view_port.y1
+                    && pixel_y < view_port.y2
+                {
+                    frame.set_pixel(
+                        (shift_x + pixel_x as isize) as usize,
+                        (shift_y + pixel_y as isize) as usize,
+                        rgb,
+                    );
+                }
             }
         }
+    }
+}
+
+// Renders the background pixels.
+fn render_bg(ppu: &NESPPU, frame: &mut Frame) {
+    let scroll_x = (ppu.scroll.x) as usize;
+    let scroll_y = (ppu.scroll.y) as usize;
+
+    let (main_nametable, second_nametable) = match (&ppu.mirroring, ppu.ctrl.nametable_addr()) {
+        (Mirroring::Vertical, 0x2000)
+        | (Mirroring::Vertical, 0x2800)
+        | (Mirroring::Horizontal, 0x2000)
+        | (Mirroring::Horizontal, 0x2400) => (&ppu.vram[0..0x400], &ppu.vram[0x400..0x800]),
+        (Mirroring::Vertical, 0x2400)
+        | (Mirroring::Vertical, 0x2C00)
+        | (Mirroring::Horizontal, 0x2800)
+        | (Mirroring::Horizontal, 0x2C00) => (&ppu.vram[0x400..0x800], &ppu.vram[0..0x400]),
+        (_, _) => {
+            panic!("Not supported mirroring type {:?}", ppu.mirroring);
+        }
+    };
+
+    render_name_table(
+        ppu,
+        frame,
+        main_nametable,
+        Rect::new(scroll_x, scroll_y, 256, 240),
+        -(scroll_x as isize),
+        -(scroll_y as isize),
+    );
+    if scroll_x > 0 {
+        render_name_table(
+            ppu,
+            frame,
+            second_nametable,
+            Rect::new(0, 0, scroll_x, 240),
+            (256 - scroll_x) as isize,
+            0,
+        );
+    } else if scroll_y > 0 {
+        render_name_table(
+            ppu,
+            frame,
+            second_nametable,
+            Rect::new(0, 0, 256, scroll_y),
+            0,
+            (240 - scroll_y) as isize,
+        );
     }
 }
 

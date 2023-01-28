@@ -124,10 +124,12 @@ impl NESPPU {
             return false;
         }
 
+        if self.sprite_zero_hit(self.cycles) {
+            self.status.set_sprite_zero_hit(true);
+        }
+
         self.cycles -= 341;
         self.scanline += 1;
-
-        // println!("{}", self.scanline);
 
         // VBLANK is triggered at scanline 241.
         if self.scanline == 241 {
@@ -148,6 +150,14 @@ impl NESPPU {
         }
 
         return false;
+    }
+
+    // Returns true when a nonzero pixel of sprite 0 overlaps a nonzero
+    // background pixel.
+    fn sprite_zero_hit(&self, cycle: usize) -> bool {
+        let y = self.oam_data[0] as usize;
+        let x = self.oam_data[3] as usize;
+        (y == self.scanline as usize) && x <= cycle && self.mask.show_sprites()
     }
 }
 
