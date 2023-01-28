@@ -1,3 +1,5 @@
+use super::palette;
+
 pub struct Frame {
     pub data: Vec<u8>,
 }
@@ -12,7 +14,7 @@ impl Frame {
         }
     }
 
-    pub fn set_pixel(&mut self, x: usize, y: usize, rgb: (u8, u8, u8)) {
+    pub fn set_pixel(&mut self, x: usize, y: usize, rgb: &palette::Rgb) {
         let base = y * 3 * Frame::WIDTH + x * 3;
         if base + 2 < self.data.len() {
             self.data[base] = rgb.0;

@@ -84,9 +84,9 @@ fn render_name_table(
 ) {
     let bank = ppu.ctrl.bgrnd_pattern_addr();
 
-    let attribute_table = &name_table[0x3C0..0x400];
+    let attribute_table = &name_table[SCREEN_SIZE..0x400];
 
-    for i in 0..0x3C0 {
+    for i in 0..SCREEN_SIZE {
         let tile_column = i % 32;
         let tile_row = i / 32;
         let tile_idx = name_table[i] as u16;
@@ -103,10 +103,10 @@ fn render_name_table(
                 upper = upper >> 1;
                 lower = lower >> 1;
                 let rgb = match value {
-                    0 => palette::COLOUR_PALETTE[ppu.palette_table[0] as usize],
-                    1 => palette::COLOUR_PALETTE[palette[1] as usize],
-                    2 => palette::COLOUR_PALETTE[palette[2] as usize],
-                    3 => palette::COLOUR_PALETTE[palette[3] as usize],
+                    0 => &palette::COLOUR_PALETTE[ppu.palette_table[0] as usize],
+                    1 => &palette::COLOUR_PALETTE[palette[1] as usize],
+                    2 => &palette::COLOUR_PALETTE[palette[2] as usize],
+                    3 => &palette::COLOUR_PALETTE[palette[3] as usize],
                     _ => panic!("can't be"),
                 };
                 let pixel_x = tile_column * 8 + x;
@@ -212,9 +212,9 @@ fn render_sprites(ppu: &NESPPU, frame: &mut Frame) {
                 lower = lower >> 1;
                 let rgb = match value {
                     0 => continue,
-                    1 => palette::COLOUR_PALETTE[sprite_palette[1] as usize],
-                    2 => palette::COLOUR_PALETTE[sprite_palette[2] as usize],
-                    3 => palette::COLOUR_PALETTE[sprite_palette[3] as usize],
+                    1 => &palette::COLOUR_PALETTE[sprite_palette[1] as usize],
+                    2 => &palette::COLOUR_PALETTE[sprite_palette[2] as usize],
+                    3 => &palette::COLOUR_PALETTE[sprite_palette[3] as usize],
                     _ => panic!("invalid sprite index"),
                 };
                 match (flip_horizontal, flip_vertical) {

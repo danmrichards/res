@@ -25,10 +25,10 @@ pub fn show_tile_bank(chr_rom: &Vec<u8>, bank: usize) -> Frame {
                 upper = upper >> 1;
                 lower = lower >> 1;
                 let rgb = match value {
-                    0 => palette::COLOUR_PALETTE[0x01],
-                    1 => palette::COLOUR_PALETTE[0x23],
-                    2 => palette::COLOUR_PALETTE[0x27],
-                    3 => palette::COLOUR_PALETTE[0x30],
+                    0 => &palette::COLOUR_PALETTE[0x01],
+                    1 => &palette::COLOUR_PALETTE[0x23],
+                    2 => &palette::COLOUR_PALETTE[0x27],
+                    3 => &palette::COLOUR_PALETTE[0x30],
                     _ => panic!("can't be"),
                 };
                 frame.set_pixel(tile_x + x, tile_y + y, rgb)
