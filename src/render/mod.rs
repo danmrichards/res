@@ -178,6 +178,9 @@ fn render_bg(ppu: &NESPPU, frame: &mut Frame) {
 
 // Renders sprites.
 fn render_sprites(ppu: &NESPPU, frame: &mut Frame) {
+    // Iterate the OAM in reverse to ensure sprite priority is maintained. In
+    // the NES OAM, the sprite that occurs first in memory will overlap any that
+    // follow.
     for i in (0..ppu.oam_data.len()).step_by(4).rev() {
         let tile_idx = ppu.oam_data[i + 1] as u16;
         let tile_x = ppu.oam_data[i + 3] as usize;
