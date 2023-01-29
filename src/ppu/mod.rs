@@ -1,16 +1,37 @@
-pub mod frame;
-pub mod palette;
 pub mod registers;
-pub mod sprite;
+
+mod frame;
+mod sprite;
+mod palette;
 
 use crate::cartridge::Mirroring;
-use crate::render;
-use frame::Frame;
 use registers::addr::Addr;
 use registers::control::Control;
 use registers::mask::Mask;
 use registers::scroll::Scroll;
 use registers::status::Status;
+
+use self::frame::Frame;
+use self::sprite::Sprite;
+
+const SCREEN_SIZE: usize = 0x3C0;
+
+
+/// Represents a rectangle viewport.
+struct Rect {
+    x1: usize,
+    y1: usize,
+    x2: usize,
+    y2: usize,
+}
+
+impl Rect {
+    /// Returns an instantiated Rect.
+    fn new(x1: usize, y1: usize, x2: usize, y2: usize) -> Self {
+        Rect { x1, y1, x2, y2 }
+    }
+}
+
 
 /// Represents the NES PPU.
 pub struct NESPPU<'rcall> {
@@ -141,7 +162,7 @@ impl<'a> NESPPU<'a> {
 
     /// Returns true if a frame has been completed, while incrementing the cycle
     /// count and scanline as appropriate.
-    pub fn tick(&mut self, cycles: u8) -> bool {
+    pub fn clock(&mut self, cycles: u8) -> bool {
         self.cycles += cycles as usize;
 
         // Each scanline lasts for 341 PPU clock cycles.
@@ -156,8 +177,8 @@ impl<'a> NESPPU<'a> {
         self.cycles -= 341;
         self.scanline += 1;
 
-        // TODO(dr): Move render logic into PPU crate.
-        render::render(self, &mut self.frame);
+        self.render_bg();
+        self.render_sprites();
 
         // VBLANK is triggered at scanline 241.
         if self.scanline == 241 {
@@ -190,6 +211,195 @@ impl<'a> NESPPU<'a> {
         let y = self.oam_data[0] as usize;
         let x = self.oam_data[3] as usize;
         (y == self.scanline as usize) && x <= cycle && self.mask.show_sprites()
+    }
+
+    /// Returns the background palette for a specific column and row on screen.
+    fn bg_palette(&self, attribute_table: &[u8], col: usize, row: usize) -> [u8; 4] {
+        // Each background tile is one byte in the nametable space in VRAM.
+        let attr_table_idx = row / 4 * 8 + col / 4;
+        let attr = attribute_table[attr_table_idx];
+
+        // A byte in an attribute table controls which palettes are used for 4x4
+        // tile blocks or 32x32 pixels.
+        //
+        // A byte is split into four 2-bit blocks and each block is assigning a
+        // background palette for four neighboring tiles.
+        //
+        // Determine which tile we're dealing with and match the appropriate part
+        // of the byte.
+        //
+        // Example:
+        //
+        //  0b11011000 => 0b|11|01|10|00 => 11,01,10,00
+        let palette_idx = match (col % 4 / 2, row % 4 / 2) {
+            (0, 0) => attr & 0b11,
+            (1, 0) => (attr >> 2) & 0b11,
+            (0, 1) => (attr >> 4) & 0b11,
+            (1, 1) => (attr >> 6) & 0b11,
+            (_, _) => panic!("invalid palette index"),
+        };
+
+        let start: usize = 1 + (palette_idx as usize) * 4;
+        [
+            self.palette_table[0],
+            self.palette_table[start],
+            self.palette_table[start + 1],
+            self.palette_table[start + 2],
+        ]
+    }
+
+    /// Returns the sprite palette for a given index
+    fn sprite_palette(&self, idx: u8) -> [u8; 4] {
+        let start = 0x11 + (idx * 4) as usize;
+        [
+            0,
+            self.palette_table[start],
+            self.palette_table[start + 1],
+            self.palette_table[start + 2],
+        ]
+    }
+
+    /// Renders a given view port.
+    fn render_view_port(
+        &mut self,
+        name_table: &[u8],
+        view_port: Rect,
+        shift_x: isize,
+        shift_y: isize,
+    ) {
+        let bank = self.ctrl.bgrnd_pattern_addr();
+
+        let attribute_table = &name_table[SCREEN_SIZE..0x400];
+
+        for i in 0..SCREEN_SIZE {
+            let tile_column = i % 32;
+            let tile_row = i / 32;
+            let tile_idx = name_table[i] as u16;
+            let tile =
+                &self.chr_rom[(bank + tile_idx * 16) as usize..=(bank + tile_idx * 16 + 15) as usize];
+            let palette = self.bg_palette(attribute_table, tile_column, tile_row);
+
+            for y in 0..=7 {
+                let mut upper = tile[y];
+                let mut lower = tile[y + 8];
+
+                for x in (0..=7).rev() {
+                    let value = (1 & lower) << 1 | (1 & upper);
+                    upper = upper >> 1;
+                    lower = lower >> 1;
+                    let rgb = match value {
+                        0 => &palette::COLOUR_PALETTE[self.palette_table[0] as usize],
+                        1 => &palette::COLOUR_PALETTE[palette[1] as usize],
+                        2 => &palette::COLOUR_PALETTE[palette[2] as usize],
+                        3 => &palette::COLOUR_PALETTE[palette[3] as usize],
+                        _ => panic!("can't be"),
+                    };
+                    let pixel_x = tile_column * 8 + x;
+                    let pixel_y = tile_row * 8 + y;
+
+                    if pixel_x >= view_port.x1
+                        && pixel_x < view_port.x2
+                        && pixel_y >= view_port.y1
+                        && pixel_y < view_port.y2
+                    {
+                        self.frame.set_pixel(
+                            (shift_x + pixel_x as isize) as usize,
+                            (shift_y + pixel_y as isize) as usize,
+                            rgb,
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// Renders the background pixels.
+    fn render_bg(&mut self) {
+        let scroll_x = (self.scroll.x) as usize;
+        let scroll_y = (self.scroll.y) as usize;
+
+        // TODO(dr): Abstracting this out to the PPU bus should fix the
+        // ownership mutable/immutable issue.
+        let (main_nametable, second_nametable) = match (&self.mirroring, self.ctrl.nametable_addr()) {
+            (Mirroring::Vertical, 0x2000)
+            | (Mirroring::Vertical, 0x2800)
+            | (Mirroring::Horizontal, 0x2000)
+            | (Mirroring::Horizontal, 0x2400) => (&self.vram[0..0x400], &self.vram[0x400..0x800]),
+            (Mirroring::Vertical, 0x2400)
+            | (Mirroring::Vertical, 0x2C00)
+            | (Mirroring::Horizontal, 0x2800)
+            | (Mirroring::Horizontal, 0x2C00) => (&self.vram[0x400..0x800], &self.vram[0..0x400]),
+            (_, _) => {
+                panic!("Not supported mirroring type {:?}", self.mirroring);
+            }
+        };
+
+        self.render_view_port(
+            main_nametable,
+            Rect::new(scroll_x, scroll_y, 256, 240),
+            -(scroll_x as isize),
+            -(scroll_y as isize),
+        );
+        if scroll_x > 0 {
+            self.render_view_port(
+                second_nametable,
+                Rect::new(0, 0, scroll_x, 240),
+                (256 - scroll_x) as isize,
+                0,
+            );
+        } else if scroll_y > 0 {
+            self.render_view_port(
+                second_nametable,
+                Rect::new(0, 0, 256, scroll_y),
+                0,
+                (240 - scroll_y) as isize,
+            );
+        }
+    }
+
+    /// Renders sprites.
+    fn render_sprites(&mut self) {
+        // Iterate the OAM in reverse to ensure sprite priority is maintained. In
+        // the NES OAM, the sprite that occurs first in memory will overlap any that
+        // follow.
+        for i in (0..self.oam_data.len()).step_by(4).rev() {
+            let sprite = Sprite::new(&self.oam_data[i..i + 4]);
+
+            if sprite.behind_background() {
+                continue;
+            }
+
+            let sprite_palette = self.sprite_palette(sprite.palette_index());
+
+            let bank: u16 = self.ctrl.sprite_pattern_addr();
+
+            let tile = &self.chr_rom
+                [(bank + sprite.index * 16) as usize..=(bank + sprite.index * 16 + 15) as usize];
+
+            // Draw the 8x8 sprite.
+            for y in 0..=7 {
+                let mut upper = tile[y];
+                let mut lower = tile[y + 8];
+                for x in (0..=7).rev() {
+                    let value = (1 & lower) << 1 | (1 & upper);
+                    upper = upper >> 1;
+                    lower = lower >> 1;
+                    let rgb = match value {
+                        0 => continue,
+                        1 => &palette::COLOUR_PALETTE[sprite_palette[1] as usize],
+                        2 => &palette::COLOUR_PALETTE[sprite_palette[2] as usize],
+                        3 => &palette::COLOUR_PALETTE[sprite_palette[3] as usize],
+                        _ => panic!("invalid sprite index"),
+                    };
+                    match (sprite.flip_horizontal(), sprite.flip_vertical()) {
+                        (false, false) => self.frame.set_pixel(sprite.x + x, sprite.y + y, rgb),
+                        (true, false) => self.frame.set_pixel(sprite.x + 7 - x, sprite.y + y, rgb),
+                        (false, true) => self.frame.set_pixel(sprite.x + x, sprite.y + 7 - y, rgb),
+                        (true, true) => self.frame.set_pixel(sprite.x + 7 - x, sprite.y + 7 - y, rgb),
+                    }
+                }
+            }
+        }
     }
 }
 

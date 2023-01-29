@@ -1,16 +1,15 @@
 extern crate core;
 
-pub mod bus;
-pub mod cartridge;
-pub mod cpu;
-pub mod instructions;
-pub mod joypad;
-pub mod ppu;
-pub mod render;
-pub mod timer;
-pub mod trace;
+mod bus;
+mod cartridge;
+mod cpu;
+mod instructions;
+mod joypad;
+mod ppu;
+mod timer;
+mod trace;
 
-use bus::Bus;
+use bus::SystemBus;
 use cartridge::Rom;
 use clap::Parser;
 use cpu::CPU;
@@ -97,7 +96,7 @@ fn main() {
     key_map.insert(Keycode::A, joypad::JOYPAD_BUTTON_A);
     key_map.insert(Keycode::S, joypad::JOYPAD_BUTTON_B);
 
-    let bus = Bus::new(rom, move |frame| {
+    let bus = SystemBus::new(rom, move |frame| {
         texture.update(None, frame, window_w as usize).unwrap();
 
         canvas.copy(&texture, None, None).unwrap();

@@ -1,4 +1,4 @@
-use crate::bus::Bus;
+use crate::bus::SystemBus;
 use crate::instructions;
 use std::collections::HashMap;
 
@@ -59,6 +59,8 @@ pub enum AddressingMode {
     /// Used when an opcode takes no operand.
     Implied,
 }
+
+// TODO(dr): Define trait for remainder of system bus operations.
 
 pub trait Memory {
     /// Returns the byte at the given address in memory.
@@ -137,7 +139,7 @@ pub struct CPU<'a> {
 
     /// Handles data read/write, interrupts, memory mapping and PPU/CPU clock
     /// cycles.
-    pub bus: Bus<'a>,
+    pub bus: SystemBus<'a>,
 }
 
 impl Memory for CPU<'_> {
@@ -185,7 +187,7 @@ mod interrupt {
 
 impl<'a> CPU<'a> {
     /// Returns an instantiated CPU.
-    pub fn new<'b>(bus: Bus<'b>) -> CPU<'b> {
+    pub fn new<'b>(bus: SystemBus<'b>) -> CPU<'b> {
         CPU {
             a: 0,
             x: 0,
