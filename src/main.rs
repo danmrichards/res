@@ -7,20 +7,22 @@ pub mod instructions;
 pub mod joypad;
 pub mod ppu;
 pub mod render;
-pub mod tile;
+pub mod timer;
 pub mod trace;
 
 use bus::Bus;
 use cartridge::Rom;
 use clap::Parser;
 use cpu::CPU;
-use ppu::NESPPU;
-use render::frame::Frame;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use timer::Timer;
+
+// Time between each frame (at 60fps)
+const SECS_PER_FRAME: f64 = 1.0 / 60.0;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -84,8 +86,6 @@ fn main() {
     let bytes: Vec<u8> = std::fs::read(args.rom).unwrap();
     let rom = Rom::new(&bytes).unwrap();
 
-    let mut frame = Frame::new();
-
     // Initialise joypad.
     let mut key_map = HashMap::new();
     key_map.insert(Keycode::Up, joypad::JOYPAD_UP);
@@ -97,20 +97,18 @@ fn main() {
     key_map.insert(Keycode::A, joypad::JOYPAD_BUTTON_A);
     key_map.insert(Keycode::S, joypad::JOYPAD_BUTTON_B);
 
-    // Forcing a 60FPS frame-time.
-    let frame_duration = Duration::new(0, 1000000000 / 60);
-    let mut timestamp = Instant::now();
-
-    let bus = Bus::new(rom, move |ppu: &NESPPU, joypad: &mut joypad::Joypad| {
-        render::render(ppu, &mut frame);
-        texture
-            .update(None, &frame.data, window_w as usize)
-            .unwrap();
+    let bus = Bus::new(rom, move |frame| {
+        texture.update(None, frame, window_w as usize).unwrap();
 
         canvas.copy(&texture, None, None).unwrap();
-
         canvas.present();
+    });
 
+    let mut cpu = CPU::new(bus);
+    cpu.reset();
+
+    let mut timer = Timer::new();
+    loop {
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. }
@@ -120,30 +118,27 @@ fn main() {
                 } => std::process::exit(0),
                 Event::KeyDown { keycode, .. } => {
                     if let Some(key) = key_map.get(&keycode.unwrap_or(Keycode::Ampersand)) {
-                        joypad.set_button_pressed_status(*key, true);
+                        cpu.set_button_pressed_status(*key, true);
                     }
                 }
                 Event::KeyUp { keycode, .. } => {
                     if let Some(key) = key_map.get(&keycode.unwrap_or(Keycode::Ampersand)) {
-                        joypad.set_button_pressed_status(*key, false);
+                        cpu.set_button_pressed_status(*key, false);
                     }
                 }
                 _ => { /* do nothing */ }
             }
         }
 
-        // Pause for the next frame.
-        let now = Instant::now();
-        let sleep_dur = frame_duration
-            .checked_sub(now.saturating_duration_since(timestamp))
-            .unwrap_or(Duration::new(0, 0));
-        ::std::thread::sleep(sleep_dur);
+        // Clock the CPU until a frame has been rendered.
+        let frame_count = cpu.bus.ppu_frame_count();
+        while cpu.bus.ppu_frame_count() == frame_count {
+            cpu.clock();
+        }
 
-        timestamp = now;
-    });
-
-    let mut cpu = CPU::new(bus);
-
-    cpu.reset();
-    cpu.run();
+        // Forcing 60FPS by waiting for the next frame (if not enough time has
+        // already elapsed).
+        timer.wait(Duration::from_secs_f64(SECS_PER_FRAME));
+        timer.reset();
+    }
 }

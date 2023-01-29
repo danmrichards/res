@@ -4,17 +4,17 @@ use crate::joypad::Joypad;
 use crate::ppu::NESPPU;
 use crate::ppu::PPU;
 
-// | Address range | Size  | Device                                                                  |
-// | ------------- | ----- | ----------------------------------------------------------------------- |
-// | $0000-$07FF   | $0800 | 2KB internal RAM                                                        |
-// | $0800-$0FFF   | $0800 | Mirrors of $0000-$07FF                                                  |
-// | $1000-$17FF   | $0800 |                                                                         |
-// | $1800-$1FFF   | $0800 |                                                                         |
-// | $2000-$2007   | $0008 | NES PPU registers                                                       |
-// | $2008-$3FFF   | $1FF8 | Mirrors of $2000-2007 (repeats every 8 bytes)                           |
-// | $4000-$4017   | $0018 | NES APU and I/O registers                                               |
-// | $4018-$401F   | $0008 | APU and I/O functionality that is normally disabled. See CPU Test Mode. |
-// | $4020-$FFFF   | $BFE0 | Cartridge space: PRG ROM, PRG RAM, and mapper registers (See Note)      |
+/// | Address range | Size  | Device                                                                  |
+/// | ------------- | ----- | ----------------------------------------------------------------------- |
+/// | $0000-$07FF   | $0800 | 2KB internal RAM                                                        |
+/// | $0800-$0FFF   | $0800 | Mirrors of $0000-$07FF                                                  |
+/// | $1000-$17FF   | $0800 |                                                                         |
+/// | $1800-$1FFF   | $0800 |                                                                         |
+/// | $2000-$2007   | $0008 | NES PPU registers                                                       |
+/// | $2008-$3FFF   | $1FF8 | Mirrors of $2000-2007 (repeats every 8 bytes)                           |
+/// | $4000-$4017   | $0018 | NES APU and I/O registers                                               |
+/// | $4018-$401F   | $0008 | APU and I/O functionality that is normally disabled. See CPU Test Mode. |
+/// | $4020-$FFFF   | $BFE0 | Cartridge space: PRG ROM, PRG RAM, and mapper registers (See Note)      |
 const RAM: u16 = 0x0000;
 const RAM_MIRRORS_END: u16 = 0x1FFF;
 const PPU_REGISTERS: u16 = 0x2000;
@@ -22,29 +22,27 @@ const PPU_REGISTERS_MIRRORS_END: u16 = 0x3FFF;
 const PRG: u16 = 0x8000;
 const PRG_END: u16 = 0xFFFF;
 
-// Bus abstracts a single location data read/write, interrupts, memory mapping
-// and PPU/CPU clock cycles.
-pub struct Bus<'call> {
+/// Bus abstracts a single location data read/write, interrupts, memory mapping
+/// and PPU/CPU clock cycles.
+pub struct Bus<'a> {
     cpu_vram: [u8; 2048],
     prg_rom: Vec<u8>,
-    ppu: NESPPU,
-    joypad1: Joypad,
+    ppu: NESPPU<'a>,
+    pub joypad1: Joypad,
 
-    // Tracks the number of CPU cycles. We're using a basic "catch up" technique
-    // here, running one whole instruction and calculating the "budget" of
-    // cycles for each component. Then running them to completion.
+    /// Tracks the number of CPU cycles. We're using a basic "catch up" technique
+    /// here, running one whole instruction and calculating the "budget" of
+    /// cycles for each component. Then running them to completion.
     cycles: usize,
-
-    gameloop_callback: Box<dyn FnMut(&NESPPU, &mut Joypad) + 'call>,
 }
 
 impl<'a> Bus<'a> {
-    // Returns an instantiated Bus.
-    pub fn new<'call, F>(rom: Rom, gameloop_callback: F) -> Bus<'call>
+    /// Returns an instantiated Bus.
+    pub fn new<F>(rom: Rom, render_callback: F) -> Self
     where
-        F: FnMut(&NESPPU, &mut Joypad) + 'call,
+        F: FnMut(&[u8]) + 'a,
     {
-        let ppu = NESPPU::new(rom.chr, rom.screen_mirroring);
+        let ppu = NESPPU::new(rom.chr, rom.screen_mirroring, Box::new(render_callback));
 
         Bus {
             cpu_vram: [0; 2048],
@@ -52,11 +50,10 @@ impl<'a> Bus<'a> {
             ppu: ppu,
             joypad1: Joypad::new(),
             cycles: 0,
-            gameloop_callback: Box::from(gameloop_callback),
         }
     }
 
-    // Returns a byte from PRG ROM at the given address.
+    /// Returns a byte from PRG ROM at the given address.
     fn read_prg(&self, mut addr: u16) -> u8 {
         addr -= PRG;
         if self.prg_rom.len() == 0x4000 && addr >= 0x4000 {
@@ -66,7 +63,7 @@ impl<'a> Bus<'a> {
         self.prg_rom[addr as usize]
     }
 
-    // Increments the number of cycles processed by the CPU.
+    /// Increments the number of cycles processed by the CPU.
     pub fn tick(&mut self, cycles: u8) {
         self.cycles += cycles as usize;
         let start_nmi = self.ppu.nmi_interrupt.is_some();
@@ -77,13 +74,18 @@ impl<'a> Bus<'a> {
 
         // Run the callback if NMI occurred during this tick.
         if !start_nmi && self.ppu.nmi_interrupt.is_some() {
-            (self.gameloop_callback)(&self.ppu, &mut self.joypad1);
+            //(self.gameloop_callback)(&self.ppu);
         }
     }
 
-    // Returns the NMI status of the PPU.
+    /// Returns the NMI status of the PPU.
     pub fn nmi_status(&mut self) -> Option<bool> {
         self.ppu.nmi_interrupt.take()
+    }
+
+    /// Returns the number of rendered frames from the PPU.
+    pub fn ppu_frame_count(&self) -> u128 {
+        self.ppu.read_frame_count()
     }
 }
 
@@ -201,7 +203,7 @@ mod test {
 
     #[test]
     fn test_mem_read_write_to_ram() {
-        let mut bus = Bus::new(test::test_rom(), |ppu: &NESPPU, joypad: &mut Joypad| {});
+        let mut bus = Bus::new(test::test_rom(), |_| {});
         bus.mem_write_byte(0x01, 0x55);
         assert_eq!(bus.mem_read_byte(0x01), 0x55);
     }

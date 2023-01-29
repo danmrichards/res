@@ -1,4 +1,4 @@
-// Represents the PPU address register.
+/// Represents the PPU address register.
 pub struct Addr {
     hi: u8,
     lo: u8,
@@ -6,7 +6,7 @@ pub struct Addr {
 }
 
 impl Addr {
-    // Returns an instantiated address register.
+    /// Returns an instantiated address register.
     pub fn new() -> Self {
         Addr {
             hi: 0,
@@ -15,14 +15,14 @@ impl Addr {
         }
     }
 
-    // Sets two bits of the register with data.
+    /// Sets two bits of the register with data.
     fn set(&mut self, data: u16) {
         self.hi = (data >> 8) as u8;
         self.lo = (data & 0xFF) as u8;
     }
 
-    // Sets either the high or low bit of the register depending on the "high
-    // pointer".
+    /// Sets either the high or low bit of the register depending on the "high
+    /// pointer".
     pub fn update(&mut self, data: u8) {
         if self.write_hi {
             self.hi = data;
@@ -37,7 +37,7 @@ impl Addr {
         self.write_hi = !self.write_hi;
     }
 
-    // Increments the register.
+    /// Increments the register.
     pub fn increment(&mut self, inc: u8) {
         let lo = self.lo;
         self.lo = self.lo.wrapping_add(inc);
@@ -51,12 +51,12 @@ impl Addr {
         }
     }
 
-    // Resets the register.
+    /// Resets the register.
     pub fn reset(&mut self) {
         self.write_hi = true;
     }
 
-    // Returns the value of the register.
+    /// Returns the value of the register.
     pub fn get(&self) -> u16 {
         ((self.hi as u16) << 8) | (self.lo as u16)
     }

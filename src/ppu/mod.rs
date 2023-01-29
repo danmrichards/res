@@ -1,47 +1,61 @@
+pub mod frame;
+pub mod palette;
+pub mod registers;
+pub mod sprite;
+
 use crate::cartridge::Mirroring;
+use crate::render;
+use frame::Frame;
 use registers::addr::Addr;
 use registers::control::Control;
 use registers::mask::Mask;
 use registers::scroll::Scroll;
 use registers::status::Status;
 
-pub mod registers;
-
-// Represents the NES PPU.
-pub struct NESPPU {
-    // Character (visuals) ROM.
+/// Represents the NES PPU.
+pub struct NESPPU<'rcall> {
+    /// Character (visuals) ROM.
     pub chr_rom: Vec<u8>,
 
-    // Internal reference to colour palettes.
+    /// Internal reference to colour palettes.
     pub palette_table: [u8; 32],
 
-    // Video RAM.
+    /// Video RAM.
     pub vram: [u8; 2048],
 
-    // Object attribute memory (sprites).
+    /// Object attribute memory (sprites).
     pub oam_addr: u8,
     pub oam_data: [u8; 256],
 
     pub mirroring: Mirroring,
 
-    // Registers.
+    /// Registers.
     pub addr: Addr,
     pub ctrl: Control,
     pub mask: Mask,
     pub scroll: Scroll,
     pub status: Status,
 
-    // Is the NMI interrupt set?
+    /// Is the NMI interrupt set?
     pub nmi_interrupt: Option<bool>,
 
-    // Buffer for data read from previous request.
+    /// Buffer for data read from previous request.
     buf: u8,
 
-    // Current picture scan line
+    /// Current picture scan line
     scanline: u16,
 
-    // Number of cycles.
+    /// Number of cycles.
     cycles: usize,
+
+    /// Number of frames rendered by the PPU.
+    frame_count: u128,
+
+    /// Current frame.
+    frame: Frame,
+
+    /// Callback to render frame.
+    render_callback: Box<dyn FnMut(&[u8]) + 'rcall>,
 }
 
 pub trait PPU {
@@ -56,11 +70,19 @@ pub trait PPU {
     fn read_data(&mut self) -> u8;
     fn read_status(&mut self) -> u8;
     fn read_oam_data(&self) -> u8;
+    fn read_frame_count(&self) -> u128;
 }
 
-impl NESPPU {
-    // Returns an instantiated PPU.
-    pub fn new(chr_rom: Vec<u8>, mirroring: Mirroring) -> Self {
+impl<'a> NESPPU<'a> {
+    /// Returns an instantiated PPU.
+    pub fn new<'rcall, F>(
+        chr_rom: Vec<u8>,
+        mirroring: Mirroring,
+        render_callback: F,
+    ) -> NESPPU<'rcall>
+    where
+        F: FnMut(&[u8]) + 'rcall,
+    {
         NESPPU {
             chr_rom: chr_rom,
             palette_table: [0; 32],
@@ -77,26 +99,29 @@ impl NESPPU {
             scanline: 0,
             cycles: 0,
             nmi_interrupt: None,
+            frame_count: 0,
+            frame: Frame::new(),
+            render_callback: Box::from(render_callback),
         }
     }
 
-    // Returns an instatiated PPU with an empty ROM loaded.
+    /// Returns an instatiated PPU with an empty ROM loaded.
     pub fn new_empty_rom() -> Self {
-        NESPPU::new(vec![0; 2048], Mirroring::Horizontal)
+        NESPPU::new(vec![0; 2048], Mirroring::Horizontal, |_| {})
     }
 
-    // Increment the VRAM address based on the control register status.
+    /// Increment the VRAM address based on the control register status.
     fn increment_vram_addr(&mut self) {
         self.addr.increment(self.ctrl.vram_addr_increment());
     }
 
-    // Horizontal:
-    //   [ A ] [ a ]
-    //   [ B ] [ b ]
-    //
-    // Vertical:
-    //   [ A ] [ B ]
-    //   [ a ] [ b ]
+    /// Horizontal:
+    ///   [ A ] [ a ]
+    ///   [ B ] [ b ]
+    ///
+    /// Vertical:
+    ///   [ A ] [ B ]
+    ///   [ a ] [ b ]
     fn mirror_vram_addr(&self, addr: u16) -> u16 {
         // Mirror down 0x3000-0x3EFF to 0x2000 - 0x2EFF
         let mirrored_vram = addr & 0b1011111_1111111;
@@ -114,8 +139,8 @@ impl NESPPU {
         }
     }
 
-    // Returns true if a frame has been completed, while incrementing the cycle
-    // count and scanline as appropriate.
+    /// Returns true if a frame has been completed, while incrementing the cycle
+    /// count and scanline as appropriate.
     pub fn tick(&mut self, cycles: u8) -> bool {
         self.cycles += cycles as usize;
 
@@ -131,6 +156,9 @@ impl NESPPU {
         self.cycles -= 341;
         self.scanline += 1;
 
+        // TODO(dr): Move render logic into PPU crate.
+        render::render(self, &mut self.frame);
+
         // VBLANK is triggered at scanline 241.
         if self.scanline == 241 {
             self.status.set_vblank_status(true);
@@ -140,6 +168,10 @@ impl NESPPU {
             if self.ctrl.vblank_nmi() {
                 self.nmi_interrupt = Some(true);
             }
+
+            self.frame_count = self.frame_count.wrapping_add(1);
+
+            (self.render_callback)(self.frame.pixels());
         } else if self.scanline >= 262 {
             // There are 262 scanlines per frame.
             self.scanline = 0;
@@ -152,8 +184,8 @@ impl NESPPU {
         return false;
     }
 
-    // Returns true when a nonzero pixel of sprite 0 overlaps a nonzero
-    // background pixel.
+    /// Returns true when a nonzero pixel of sprite 0 overlaps a nonzero
+    /// background pixel.
     fn sprite_zero_hit(&self, cycle: usize) -> bool {
         let y = self.oam_data[0] as usize;
         let x = self.oam_data[3] as usize;
@@ -161,13 +193,13 @@ impl NESPPU {
     }
 }
 
-impl PPU for NESPPU {
-    // Writes value to the address register.
+impl PPU for NESPPU<'_> {
+    /// Writes value to the address register.
     fn write_addr(&mut self, value: u8) {
         self.addr.update(value);
     }
 
-    // Writes to the control register.
+    /// Writes to the control register.
     fn write_ctrl(&mut self, value: u8) {
         let start_nmi = self.ctrl.vblank_nmi();
 
@@ -178,12 +210,12 @@ impl PPU for NESPPU {
         }
     }
 
-    // Writes to the mask register.
+    /// Writes to the mask register.
     fn write_mask(&mut self, value: u8) {
         self.mask.update(value);
     }
 
-    // Writes to the scroll register.
+    /// Writes to the scroll register.
     fn write_scroll(&mut self, value: u8) {
         self.scroll.write(value);
     }
@@ -204,7 +236,7 @@ impl PPU for NESPPU {
         }
     }
 
-    // Writes data to appropriate location based on the address register.
+    /// Writes data to appropriate location based on the address register.
     fn write_data(&mut self, value: u8) {
         let addr = self.addr.get();
         match addr {
@@ -228,7 +260,7 @@ impl PPU for NESPPU {
         self.increment_vram_addr();
     }
 
-    // Retuns data from appropriate source based on the address register.
+    /// Retuns data from appropriate source based on the address register.
     fn read_data(&mut self) -> u8 {
         let addr = self.addr.get();
         self.increment_vram_addr();
@@ -253,7 +285,7 @@ impl PPU for NESPPU {
         }
     }
 
-    // Returns the PPU status register and resets VBLANK + addr.
+    /// Returns the PPU status register and resets VBLANK + addr.
     fn read_status(&mut self) -> u8 {
         let data = self.status.snapshot();
         self.status.reset_vblank_status();
@@ -264,6 +296,11 @@ impl PPU for NESPPU {
 
     fn read_oam_data(&self) -> u8 {
         self.oam_data[self.oam_addr as usize]
+    }
+
+    /// Returns number of frames rendered.
+    fn read_frame_count(&self) -> u128 {
+        self.frame_count
     }
 }
 
@@ -361,7 +398,7 @@ pub mod test {
     //   [0x2800 a ] [0x2C00 b ]
     #[test]
     fn test_vram_vertical_mirror() {
-        let mut ppu = NESPPU::new(vec![0; 2048], Mirroring::Vertical);
+        let mut ppu = NESPPU::new(vec![0; 2048], Mirroring::Vertical, |_| {});
 
         ppu.write_addr(0x20);
         ppu.write_addr(0x05);

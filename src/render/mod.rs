@@ -1,15 +1,12 @@
-pub mod frame;
-pub mod palette;
-pub mod sprite;
-
 use crate::cartridge::Mirroring;
+use crate::ppu::frame::Frame;
+use crate::ppu::palette;
+use crate::ppu::sprite::Sprite;
 use crate::ppu::NESPPU;
-use frame::Frame;
-use sprite::Sprite;
 
 const SCREEN_SIZE: usize = 0x3C0;
 
-// Represents a rectangle viewport.
+/// Represents a rectangle viewport.
 struct Rect {
     x1: usize,
     y1: usize,
@@ -18,18 +15,13 @@ struct Rect {
 }
 
 impl Rect {
-    // Returns an instantiated Rect.
+    /// Returns an instantiated Rect.
     fn new(x1: usize, y1: usize, x2: usize, y2: usize) -> Self {
-        Rect {
-            x1: x1,
-            y1: y1,
-            x2: x2,
-            y2: y2,
-        }
+        Rect { x1, y1, x2, y2 }
     }
 }
 
-// Returns the background palette for a specific column and row on screen.
+/// Returns the background palette for a specific column and row on screen.
 fn bg_palette(ppu: &NESPPU, attribute_table: &[u8], col: usize, row: usize) -> [u8; 4] {
     // Each background tile is one byte in the nametable space in VRAM.
     let attr_table_idx = row / 4 * 8 + col / 4;
@@ -64,7 +56,7 @@ fn bg_palette(ppu: &NESPPU, attribute_table: &[u8], col: usize, row: usize) -> [
     ]
 }
 
-// Returns the sprite palette for a given index
+/// Returns the sprite palette for a given index
 fn sprite_palette(ppu: &NESPPU, idx: u8) -> [u8; 4] {
     let start = 0x11 + (idx * 4) as usize;
     [
@@ -75,7 +67,7 @@ fn sprite_palette(ppu: &NESPPU, idx: u8) -> [u8; 4] {
     ]
 }
 
-// Renders a given view port.
+/// Renders a given view port.
 fn render_view_port(
     ppu: &NESPPU,
     frame: &mut Frame,
@@ -130,7 +122,7 @@ fn render_view_port(
     }
 }
 
-// Renders the background pixels.
+/// Renders the background pixels.
 fn render_bg(ppu: &NESPPU, frame: &mut Frame) {
     let scroll_x = (ppu.scroll.x) as usize;
     let scroll_y = (ppu.scroll.y) as usize;
@@ -178,7 +170,7 @@ fn render_bg(ppu: &NESPPU, frame: &mut Frame) {
     }
 }
 
-// Renders sprites.
+/// Renders sprites.
 fn render_sprites(ppu: &NESPPU, frame: &mut Frame) {
     // Iterate the OAM in reverse to ensure sprite priority is maintained. In
     // the NES OAM, the sprite that occurs first in memory will overlap any that
@@ -187,7 +179,7 @@ fn render_sprites(ppu: &NESPPU, frame: &mut Frame) {
         let sprite = Sprite::new(&ppu.oam_data[i..i + 4]);
 
         if sprite.behind_background() {
-            continue
+            continue;
         }
 
         let sprite_palette = sprite_palette(ppu, sprite.palette_index());
@@ -223,7 +215,7 @@ fn render_sprites(ppu: &NESPPU, frame: &mut Frame) {
     }
 }
 
-// Renders a screen of pixels to the frame based on PPU state.
+/// Renders a screen of pixels to the frame based on PPU state.
 pub fn render(ppu: &NESPPU, frame: &mut Frame) {
     render_bg(ppu, frame);
 
