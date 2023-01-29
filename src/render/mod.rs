@@ -73,8 +73,8 @@ impl Rect {
     }
 }
 
-// Renders viewport scrolling.
-fn render_name_table(
+// Renders a given view port.
+fn render_view_port(
     ppu: &NESPPU,
     frame: &mut Frame,
     name_table: &[u8],
@@ -147,7 +147,7 @@ fn render_bg(ppu: &NESPPU, frame: &mut Frame) {
         }
     };
 
-    render_name_table(
+    render_view_port(
         ppu,
         frame,
         main_nametable,
@@ -156,7 +156,7 @@ fn render_bg(ppu: &NESPPU, frame: &mut Frame) {
         -(scroll_y as isize),
     );
     if scroll_x > 0 {
-        render_name_table(
+        render_view_port(
             ppu,
             frame,
             second_nametable,
@@ -165,7 +165,7 @@ fn render_bg(ppu: &NESPPU, frame: &mut Frame) {
             0,
         );
     } else if scroll_y > 0 {
-        render_name_table(
+        render_view_port(
             ppu,
             frame,
             second_nametable,
@@ -182,6 +182,18 @@ fn render_sprites(ppu: &NESPPU, frame: &mut Frame) {
         let tile_idx = ppu.oam_data[i + 1] as u16;
         let tile_x = ppu.oam_data[i + 3] as usize;
         let tile_y = ppu.oam_data[i] as usize;
+
+        // TODO(dr) - i+2 is actually the sprite attributes in this format:
+        //
+        // 76543210
+        // ||||||||
+        // ||||||++- Palette (4 to 7) of sprite
+        // |||+++--- Unimplemented (read 0)
+        // ||+------ Priority (0: in front of background; 1: behind background)
+        // |+------- Flip sprite horizontally
+        // +-------- Flip sprite vertically
+        //
+        // Hence, implement sprite priority to fix clipping with background.
 
         // Sprite orientation.
         let flip_vertical = if ppu.oam_data[i + 2] >> 7 & 1 == 1 {
