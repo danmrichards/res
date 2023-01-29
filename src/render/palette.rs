@@ -1,6 +1,11 @@
 #[rustfmt::skip]
 
-pub struct Rgb(pub u8, pub u8, pub u8);
+// Represents a NES colour.
+pub struct Rgb(
+    pub u8,
+    pub u8,
+    pub u8
+);
 
 pub static COLOUR_PALETTE: [Rgb; 0x40] = [
     Rgb(84, 84, 84),
