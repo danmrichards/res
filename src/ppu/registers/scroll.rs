@@ -1,4 +1,4 @@
-// Represents the PPU scroll register.
+/// Represents the PPU scroll register.
 pub struct Scroll {
     pub x: u8,
     pub y: u8,
@@ -6,6 +6,7 @@ pub struct Scroll {
 }
 
 impl Scroll {
+    /// Returns a new scroll register.
     pub fn new() -> Self {
         Scroll {
             x: 0,
@@ -14,6 +15,7 @@ impl Scroll {
         }
     }
 
+    /// Writes to the register.
     pub fn write(&mut self, data: u8) {
         if !self.latch {
             self.x = data;
@@ -23,6 +25,7 @@ impl Scroll {
         self.latch = !self.latch;
     }
 
+    /// Resets the latch.
     pub fn reset_latch(&mut self) {
         self.latch = false;
     }

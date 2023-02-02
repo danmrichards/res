@@ -7,19 +7,19 @@ pub const JOYPAD_SELECT: u8 = 0b00000100;
 pub const JOYPAD_BUTTON_B: u8 = 0b00000010;
 pub const JOYPAD_BUTTON_A: u8 = 0b00000001;
 
-// Represents a NES joypad.
-//
-// NES joypads report the status of one button at a time in this order:
-//
-// A -> B -> Select -> Start -> Up -> Down -> Left -> Right
-//
-// After reporting the state of the button RIGHT, the controller would
-// continually return 1s for all following read, until a strobe mode change.
-//
-// The controller operates in 2 modes:
-//   - strobe bit on: controller reports only status of the button A on every
-//     read
-//   - strobe bit off: controller cycles through all buttons
+/// Represents a NES joypad.
+///
+/// NES joypads report the status of one button at a time in this order:
+///
+/// A -> B -> Select -> Start -> Up -> Down -> Left -> Right
+///
+/// After reporting the state of the button RIGHT, the controller would
+/// continually return 1s for all following read, until a strobe mode change.
+///
+/// The controller operates in 2 modes:
+///   - strobe bit on: controller reports only status of the button A on every
+///     read
+///   - strobe bit off: controller cycles through all buttons
 pub struct Joypad {
     strobe: bool,
     button_index: u8,
@@ -27,7 +27,7 @@ pub struct Joypad {
 }
 
 impl Joypad {
-    // Returns an instantiated joypad.
+    /// Returns an instantiated joypad.
     pub fn new() -> Self {
         Joypad {
             strobe: false,
@@ -36,7 +36,7 @@ impl Joypad {
         }
     }
 
-    // Writes the status of the joypad.
+    /// Writes the status of the joypad.
     pub fn write(&mut self, data: u8) {
         self.strobe = data & 1 == 1;
 
@@ -46,7 +46,7 @@ impl Joypad {
         }
     }
 
-    // Returns the status of the current button.
+    /// Returns the status of the current button.
     pub fn read(&mut self) -> u8 {
         if self.button_index > 7 {
             return 1;
@@ -60,7 +60,7 @@ impl Joypad {
         response
     }
 
-    // Sets the pressed state of the given button.
+    /// Sets the pressed state of the given button.
     pub fn set_button_pressed_status(&mut self, button: u8, pressed: bool) {
         if pressed {
             self.button_status |= button;

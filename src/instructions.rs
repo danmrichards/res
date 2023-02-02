@@ -2,7 +2,7 @@ use crate::cpu::AddressingMode;
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 
-// Represents an operation that can be processed by the NES CPU.
+/// Represents an operation that can be processed by the NES CPU.
 pub struct OpCode {
     pub code: u8,
     pub mnemonic: &'static str,
@@ -12,7 +12,7 @@ pub struct OpCode {
 }
 
 impl OpCode {
-    // Returns an instantiated OpCode.
+    /// Returns an instantiated OpCode.
     fn new(code: u8, mnemonic: &'static str, len: u8, cycles: u8, mode: AddressingMode) -> Self {
         OpCode {
             code,

@@ -9,20 +9,20 @@ pub enum Mirroring {
     FourScreen,
 }
 
-// Represents a ROM in the iNES format.
-//
-// See: https://www.nesdev.org/wiki/INES
+/// Represents a ROM in the iNES format.
+///
+/// See: https://www.nesdev.org/wiki/INES
 pub struct Rom {
-    // Contains program code.
+    /// Contains program code.
     pub prg: Vec<u8>,
 
-    // Contains pattern tables and graphics.
+    /// Contains pattern tables and graphics.
     pub chr: Vec<u8>,
 
-    // Mappers allow cartridge roms to define additional memory.
+    /// Mappers allow cartridge roms to define additional memory.
     pub mapper: u8,
 
-    // Screen mirroring mode.
+    /// Screen mirroring mode.
     pub screen_mirroring: Mirroring,
 }
 
