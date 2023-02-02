@@ -4,6 +4,8 @@ use crate::joypad::Joypad;
 use crate::ppu::NESPPU;
 use crate::ppu::PPU;
 
+use super::PPUBus;
+
 /// | Address range | Size  | Device                                                                  |
 /// | ------------- | ----- | ----------------------------------------------------------------------- |
 /// | $0000-$07FF   | $0800 | 2KB internal RAM                                                        |
@@ -37,7 +39,8 @@ impl<'a> SystemBus<'a> {
     where
         F: FnMut(&[u8]) + 'a,
     {
-        let ppu = NESPPU::new(rom.chr, rom.screen_mirroring, Box::new(render_callback));
+        let ppu_bus = PPUBus::new(rom.chr, rom.screen_mirroring);
+        let ppu = NESPPU::new(Box::new(ppu_bus), Box::new(render_callback));
 
         SystemBus {
             ram: [0; 2048],
