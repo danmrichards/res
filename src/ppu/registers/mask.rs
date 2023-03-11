@@ -1,4 +1,4 @@
-const GREYSCALE: u8 = 0b00000001;
+const GRAYSCALE: u8 = 0b00000001;
 const LEFTMOST_8PXL_BACKGROUND: u8 = 0b00000010;
 const LEFTMOST_8PXL_SPRITE: u8 = 0b00000100;
 const SHOW_BACKGROUND: u8 = 0b00001000;
@@ -13,7 +13,7 @@ pub struct Mask {
     /// ---- ----
     /// B G R s b M m G
     /// | | | | | | | |
-    /// | | | | | | | +- Greyscale (0: normal color, 1: produce a greyscale display)
+    /// | | | | | | | +- Grayscale (0: normal color, 1: produce a grayscale display)
     /// | | | | | | +--- 1: Show background in leftmost 8 pixels of screen, 0: Hide
     /// | | | | | +----- 1: Show sprites in leftmost 8 pixels of screen, 0: Hide
     /// | | | | +------- 1: Show background
@@ -24,22 +24,18 @@ pub struct Mask {
     bits: u8,
 }
 
-/// Represents a mask colour.
-pub enum Colour {
-    Red,
-    Green,
-    Blue,
-}
-
 impl Mask {
     /// Returns a new mask register.
     pub fn new() -> Self {
         Mask { bits: 0b00000000 }
     }
 
-    /// Returns true if the greyscale mask is enabled.
-    pub fn is_grayscale(&self) -> bool {
-        (self.bits & GREYSCALE) == GREYSCALE
+    /// Returns the grayscale mask value
+    pub fn grayscale_mask(&self) -> u8 {
+        match (self.bits & GRAYSCALE) == GRAYSCALE {
+            true => 0x30,
+            false => 0xFF,
+        }
     }
 
     /// Returns true if the left most 8 pixel background is enabled.
@@ -63,19 +59,30 @@ impl Mask {
     }
 
     /// Returns the current colour emphasis.
-    pub fn emphasise(&self) -> Vec<Colour> {
-        let mut result = Vec::<Colour>::new();
+    pub fn emphasise(&self) -> (f64, f64, f64) {
+        let mut r = 1.0;
+        let mut g = 1.0;
+        let mut b = 1.0;
+
         if (self.bits & EMPHASISE_RED) == EMPHASISE_RED {
-            result.push(Colour::Red);
-        }
-        if (self.bits & EMPHASISE_BLUE) == EMPHASISE_BLUE {
-            result.push(Colour::Blue);
+            g = 0.75;
+            b = 0.75;
         }
         if (self.bits & EMPHASISE_GREEN) == EMPHASISE_GREEN {
-            result.push(Colour::Green);
+            r = 0.75;
+            b = 0.75;
+        }
+        if (self.bits & EMPHASISE_BLUE) == EMPHASISE_BLUE {
+            r = 0.75;
+            b = 0.75;
         }
 
-        result
+        (r, g, b)
+    }
+
+    /// Returns true if one of the color emphasis bits is set.
+    pub fn colour_emphasis_enabled(&self) -> bool {
+        self.bits & (EMPHASISE_RED | EMPHASISE_GREEN | EMPHASISE_BLUE) != 0
     }
 
     /// Updates the state of the register.

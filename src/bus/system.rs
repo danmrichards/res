@@ -60,11 +60,16 @@ impl<'a> SystemBus<'a> {
         self.prg_rom[addr as usize]
     }
 
-    /// Increments the number of cycles processed by the CPU.
+    /// For every CPU tick, run the PPU and APU appropriately.
     pub fn tick(&mut self, cycles: u8) {
-        // PPU runs three times faster than CPU, inform it how many cycles
-        // it can run.
-        self.ppu.clock(cycles * 3);
+        for _ in 0..cycles {
+            // PPU runs three times faster than CPU.
+            for _ in 0..3 {
+                self.ppu.clock();
+            }
+
+            // TODO(dr): Clock the APU.
+        }
     }
 
     /// Returns the NMI status of the PPU.

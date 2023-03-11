@@ -4,7 +4,10 @@ const SPRITE_PALETTE: u8 = 0b00000011;
 const BEHIND_BACKGROUND: u8 = 0b00100000;
 
 /// Represents a sprite from OAM.
+#[derive(Clone, Copy, Default, Debug)]
 pub struct Sprite {
+    pub id: u8,
+
     /// X & Y position of the top-left corner of the sprite.
     pub x: usize,
     pub y: usize,
@@ -33,11 +36,12 @@ pub struct Sprite {
 
 impl Sprite {
     /// Returns an instantiated sprite.
-    pub fn new(oam_data: &[u8]) -> Self {
+    pub fn new(index: u16, oam_data: &[u8]) -> Self {
         Sprite {
+            id: oam_data[1],
             x: oam_data[3] as usize,
             y: oam_data[0] as usize,
-            index: oam_data[1] as u16,
+            index,
             attr: oam_data[2],
         }
     }

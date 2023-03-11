@@ -1,4 +1,5 @@
 // Represents a NES colour.
+#[derive(Clone, Copy)]
 pub struct Rgb(pub u8, pub u8, pub u8);
 
 /// NES colour palette.

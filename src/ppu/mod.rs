@@ -3,6 +3,7 @@ pub mod registers;
 mod frame;
 mod palette;
 mod sprite;
+mod tile;
 
 use crate::bus::Memory;
 use registers::addr::Addr;
@@ -12,9 +13,14 @@ use registers::scroll::Scroll;
 use registers::status::Status;
 
 use self::frame::Frame;
+use self::palette::Rgb;
+use self::palette::COLOUR_PALETTE;
 use self::sprite::Sprite;
+use self::tile::Tile;
 
 const SCREEN_SIZE: usize = 0x3C0;
+const OAM_SIZE: usize = 0x100;
+const OAM2_SIZE: usize = 0x8;
 
 /// Represents a rectangle viewport.
 struct Rect {
@@ -35,10 +41,18 @@ impl Rect {
 pub struct NESPPU<'rcall> {
     /// Bus to allow PPU to interact with RAM/ROM.
     bus: Box<dyn Memory>,
+    open_bus: u8,
+    open_bus_timer: u32,
 
     /// Object attribute memory (sprites).
     pub oam_addr: u8,
-    pub oam_data: [u8; 256],
+    pub oam_data: [u8; OAM_SIZE],
+    oam2_data: [Sprite; OAM2_SIZE],
+    clearing_oam: bool,
+    sprite_0_rendering: bool,
+    sprite_count: usize,
+    fg_lo_shift: [u8; OAM2_SIZE],
+    fg_hi_shift: [u8; OAM2_SIZE],
 
     /// Registers.
     pub addr: Addr,
@@ -52,15 +66,23 @@ pub struct NESPPU<'rcall> {
 
     /// Buffer for data read from previous request.
     buf: u8,
+    xfine: u8,
 
     /// Current picture scan line
-    scanline: u16,
+    scanline: i32,
 
-    /// Number of cycles.
-    cycles: usize,
+    /// Current cycle.
+    cycle: usize,
+
+    next_tile: Tile,
+    bg_lo_shift: u16,
+    bg_hi_shift: u16,
+    bg_attr_lo_shift: u16,
+    bg_attr_hi_shift: u16,
 
     /// Number of frames rendered by the PPU.
     frame_count: u128,
+    odd_frame: bool,
 
     /// Current frame.
     frame: Frame,
@@ -92,18 +114,33 @@ impl<'a> NESPPU<'a> {
     {
         NESPPU {
             bus,
+            open_bus: 0,
+            open_bus_timer: 0,
             oam_addr: 0,
-            oam_data: [0; 64 * 4],
+            oam_data: [0; OAM_SIZE],
+            oam2_data: [Sprite::default(); OAM2_SIZE],
+            clearing_oam: false,
+            sprite_0_rendering: false,
+            sprite_count: 0,
+            fg_lo_shift: [0; OAM2_SIZE],
+            fg_hi_shift: [0; OAM2_SIZE],
             buf: 0,
+            xfine: 0,
             addr: Addr::new(),
             ctrl: Control::new(),
             mask: Mask::new(),
             scroll: Scroll::new(),
             status: Status::new(),
             scanline: 0,
-            cycles: 0,
+            cycle: 0,
+            next_tile: Tile::default(),
+            bg_lo_shift: 0,
+            bg_hi_shift: 0,
+            bg_attr_lo_shift: 0,
+            bg_attr_hi_shift: 0,
             nmi_interrupt: None,
             frame_count: 0,
+            odd_frame: false,
             frame: Frame::new(),
             render_callback: Box::from(render_callback),
         }
@@ -114,235 +151,211 @@ impl<'a> NESPPU<'a> {
         self.addr.increment(self.ctrl.vram_addr_increment());
     }
 
-    /// Returns true if a frame has been completed, while incrementing the cycle
-    /// count and scanline as appropriate.
-    pub fn clock(&mut self, cycles: u8) -> bool {
-        self.cycles += cycles as usize;
+    /// Returns true if a frame has been completed.
+    pub fn clock(&mut self) {
+        // Update the open bus timer
+        self.update_open_bus();
 
-        // Each scanline lasts for 341 PPU clock cycles.
-        if self.cycles < 341 {
-            return false;
+        // Every odd frame on the first scanline, the first cycle is skipped if
+        // background rendering is enabled. A flag is updated every frame.
+        if self.odd_frame && self.scanline == 0 && self.cycle == 0 && self.rendering_enabled() {
+            self.cycle = 1;
         }
 
-        if self.sprite_zero_hit(self.cycles) {
-            self.status.set_sprite_zero_hit(true);
-        }
+        // To not have to write self. every time
+        let cycle = self.cycle;
+        let scanline = self.scanline;
 
-        self.cycles -= 341;
-        self.scanline += 1;
-
-        // VBLANK is triggered at scanline 241.
-        if self.scanline == 241 {
-            self.status.set_vblank_status(true);
-            self.status.set_sprite_zero_hit(false);
-
-            // Set the interrupt if the control register allows it.
-            if self.ctrl.vblank_nmi() {
-                self.nmi_interrupt = Some(true);
-            }
-
-            self.render_bg();
-            self.render_sprites();
-
-            self.frame_count = self.frame_count.wrapping_add(1);
-
-            (self.render_callback)(self.frame.pixels());
-        } else if self.scanline >= 262 {
-            // There are 262 scanlines per frame.
-            self.scanline = 0;
+        // Pre render scanline
+        if scanline == -1 && cycle == 1 {
+            // Clear NMI and reset status register
             self.nmi_interrupt = None;
             self.status.set_sprite_zero_hit(false);
-            self.status.reset_vblank_status();
-            return true;
+            self.status.set_sprite_overflow(false);
+            self.status.set_vblank_status(false);
+
+            // Clear sprite shifters
+            self.fg_lo_shift.fill(0);
+            self.fg_hi_shift.fill(0);
         }
 
-        return false;
-    }
+        if scanline < 240 && self.rendering_enabled() {
+            // TODO(dr): Process scanline.
+        }
 
-    /// Returns true when a nonzero pixel of sprite 0 overlaps a nonzero
-    /// background pixel.
-    fn sprite_zero_hit(&self, cycle: usize) -> bool {
-        let y = self.oam_data[0] as usize;
-        let x = self.oam_data[3] as usize;
-        (y == self.scanline as usize) && x <= cycle && self.mask.show_sprites()
-    }
-
-    /// Renders the background pixels.
-    fn render_bg(&mut self) {
-        let scroll_x = (self.scroll.x) as usize;
-        let scroll_y = (self.scroll.y) as usize;
-
-        let (main_nametable, second_nametable) = self.bus.nametables(self.ctrl.nametable_addr());
-
-        let bank = self.ctrl.bgrnd_pattern_addr();
-
-        // Render the main viewport.
-        let mut name_table = main_nametable;
-        let mut view_port = Rect::new(scroll_x, scroll_y, 256, 240);
-        let mut shift_x = -(scroll_x as isize);
-        let mut shift_y = -(scroll_y as isize);
-
-        let mut attribute_table = &name_table[SCREEN_SIZE..0x400];
-
-        for i in 0..SCREEN_SIZE {
-            let tile_column = i % 32;
-            let tile_row = i / 32;
-            let tile_idx = name_table[i] as u16;
-            let tile = self.bus.read_chr_rom(
-                (bank + tile_idx * 16) as usize,
-                (bank + tile_idx * 16 + 15) as usize,
-            );
-            let palette = self.bus.bg_palette(attribute_table, tile_column, tile_row);
-
-            for y in 0..=7 {
-                let mut upper = tile[y];
-                let mut lower = tile[y + 8];
-
-                for x in (0..=7).rev() {
-                    let mut value = 0;
-                    if self.mask.show_background() {
-                        value = (1 & lower) << 1 | (1 & upper);
-                        upper = upper >> 1;
-                        lower = lower >> 1;
-                    }
-
-                    let rgb = match value {
-                        0 => &palette::COLOUR_PALETTE[self.bus.read_palette_table(0) as usize],
-                        1 => &palette::COLOUR_PALETTE[palette[1] as usize],
-                        2 => &palette::COLOUR_PALETTE[palette[2] as usize],
-                        3 => &palette::COLOUR_PALETTE[palette[3] as usize],
-                        _ => panic!("can't be"),
-                    };
-                    let pixel_x = tile_column * 8 + x;
-                    let pixel_y = tile_row * 8 + y;
-
-                    if pixel_x >= view_port.x1
-                        && pixel_x < view_port.x2
-                        && pixel_y >= view_port.y1
-                        && pixel_y < view_port.y2
-                    {
-                        self.frame.set_pixel(
-                            (shift_x + pixel_x as isize) as usize,
-                            (shift_y + pixel_y as isize) as usize,
-                            rgb,
-                        );
-                    }
-                }
+        // Set NMI if enabled on cycle 241
+        if scanline == 241 && cycle == 1 {
+            self.status.set_vblank_status(true);
+            if self.ctrl.vblank_nmi() {
+                self.nmi_interrupt = Some(true)
             }
+
+            // A new frame is done rendering
+            self.frame_count = self.frame_count.wrapping_add(1);
+
+            // Render in window (in this case, using SDL2)
+            (self.render_callback)(self.frame.pixels());
         }
 
-        // Render the second viewport.
-        // TODO(dr): Yes this is a shit load of duplication, but it's to get
-        // around the mutability checker problems. And this whole code path will
-        // get deleted when rendering is implemented properly.
+        // Calculate the pixel color
+        if (0..240).contains(&scanline) && (1..257).contains(&cycle) {
+            let (bg_pixel, bg_palette) = self.get_bg_pixel_info();
 
-        if scroll_x > 0 {
-            name_table = second_nametable;
-            view_port = Rect::new(0, 0, scroll_x, 240);
-            shift_x = (256 - scroll_x) as isize;
-            shift_y = 0;
-        } else if scroll_y > 0 {
-            name_table = second_nametable;
-            view_port = Rect::new(0, 0, 256, scroll_y);
-            shift_x = 0;
-            (240 - scroll_y) as isize;
-        }
+            // Hack to fix random sprite colors on left of first scanline.
+            let (fg_pixel, fg_palette, fg_priority) = match scanline != 0 {
+                true => self.get_fg_pixel_info(),
+                false => (0, 0, 0),
+            };
 
-        attribute_table = &name_table[SCREEN_SIZE..0x400];
-        for i in 0..SCREEN_SIZE {
-            let tile_column = i % 32;
-            let tile_row = i / 32;
-            let tile_idx = name_table[i] as u16;
-            let tile = self.bus.read_chr_rom(
-                (bank + tile_idx * 16) as usize,
-                (bank + tile_idx * 16 + 15) as usize,
-            );
-            let palette = self.bus.bg_palette(attribute_table, tile_column, tile_row);
+            // Pixel priority logic
+            let (pixel, palette) = match bg_pixel {
+                // Both foreground and background are 0, result is 0
+                0 if fg_pixel == 0 => (0, 0),
+                // Only background is 0, output foreground
+                0 if fg_pixel > 0 => (fg_pixel, fg_palette),
+                // Only foreground is 0, output background
+                1..=3 if fg_pixel == 0 => (bg_pixel, bg_palette),
+                // Both are non zero
+                _ => {
+                    // Collision is possible
+                    self.update_sprite_zero_hit();
 
-            for y in 0..=7 {
-                let mut upper = tile[y];
-                let mut lower = tile[y + 8];
-
-                for x in (0..=7).rev() {
-                    let value = (1 & lower) << 1 | (1 & upper);
-                    upper = upper >> 1;
-                    lower = lower >> 1;
-                    let rgb = match value {
-                        0 => &palette::COLOUR_PALETTE[self.bus.read_palette_table(0) as usize],
-                        1 => &palette::COLOUR_PALETTE[palette[1] as usize],
-                        2 => &palette::COLOUR_PALETTE[palette[2] as usize],
-                        3 => &palette::COLOUR_PALETTE[palette[3] as usize],
-                        _ => panic!("can't be"),
-                    };
-                    let pixel_x = tile_column * 8 + x;
-                    let pixel_y = tile_row * 8 + y;
-
-                    if pixel_x >= view_port.x1
-                        && pixel_x < view_port.x2
-                        && pixel_y >= view_port.y1
-                        && pixel_y < view_port.y2
-                    {
-                        self.frame.set_pixel(
-                            (shift_x + pixel_x as isize) as usize,
-                            (shift_y + pixel_y as isize) as usize,
-                            rgb,
-                        );
+                    // The result is choosen based on the sprite priority
+                    // attribute.
+                    if fg_priority != 0 {
+                        (fg_pixel, fg_palette)
+                    } else {
+                        (bg_pixel, bg_palette)
                     }
                 }
+            };
+
+            // Get the color from palette RAM
+            let colour = self.get_colour(palette, pixel);
+
+            self.frame.set_pixel(cycle - 1, scanline as usize, colour);
+        }
+
+        // Update cycle count
+        self.cycle += 1;
+
+        // Last cycle
+        if self.cycle > 340 {
+            self.cycle = 0;
+            self.scanline += 1;
+
+            // Last scanline
+            if self.scanline > 260 {
+                self.scanline = -1;
+                self.odd_frame = !self.odd_frame;
             }
         }
     }
 
-    /// Renders sprites.
-    fn render_sprites(&mut self) {
-        // Iterate the OAM in reverse to ensure sprite priority is maintained. In
-        // the NES OAM, the sprite that occurs first in memory will overlap any that
-        // follow.
-        for i in (0..self.oam_data.len()).step_by(4).rev() {
-            let sprite = Sprite::new(&self.oam_data[i..i + 4]);
+    /// Refresh open bus latch timer
+    fn update_open_bus(&mut self) {
+        match self.open_bus_timer > 0 {
+            true => self.open_bus_timer -= 1,
+            false => self.open_bus = 0,
+        }
+    }
 
-            if sprite.behind_background() {
-                continue;
-            }
+    /// Returns if the rendering is enabled or not
+    fn rendering_enabled(&self) -> bool {
+        self.mask.show_sprites() | self.mask.show_background()
+    }
 
-            let sprite_palette = self.bus.sprite_palette(sprite.palette_index());
+    /// Returns pixel value and palette index of current background pixel.
+    fn get_bg_pixel_info(&self) -> (u8, u8) {
+        // Return early if we're not rendering the background.
+        if !self.mask.show_background()
+            || !(self.mask.leftmost_8pxl_background() || self.cycle >= 9)
+        {
+            (0, 0);
+        }
 
-            let bank: u16 = self.ctrl.sprite_pattern_addr();
+        let mux = 0x8000 >> self.xfine;
 
-            let tile = &self.bus.read_chr_rom(
-                (bank + sprite.index * 16) as usize,
-                (bank + sprite.index * 16 + 15) as usize,
-            );
+        let lo_pixel = ((self.bg_lo_shift & mux) != 0) as u8;
+        let hi_pixel = ((self.bg_hi_shift & mux) != 0) as u8;
+        let bg_pixel = (hi_pixel << 1) | lo_pixel;
 
-            // Draw the 8x8 sprite.
-            for y in 0..=7 {
-                let mut upper = tile[y];
-                let mut lower = tile[y + 8];
-                for x in (0..=7).rev() {
-                    let mut value = 0;
-                    if self.mask.show_sprites() {
-                        value = (1 & lower) << 1 | (1 & upper);
-                        upper = upper >> 1;
-                        lower = lower >> 1;
-                    }
+        let lo_pal = ((self.bg_attr_lo_shift & mux) != 0) as u8;
+        let hi_pal = ((self.bg_attr_hi_shift & mux) != 0) as u8;
+        let bg_palette = (hi_pal << 1) | lo_pal;
 
-                    let rgb = match value {
-                        0 => continue,
-                        1 => &palette::COLOUR_PALETTE[sprite_palette[1] as usize],
-                        2 => &palette::COLOUR_PALETTE[sprite_palette[2] as usize],
-                        3 => &palette::COLOUR_PALETTE[sprite_palette[3] as usize],
-                        _ => panic!("invalid sprite index"),
-                    };
-                    match (sprite.flip_horizontal(), sprite.flip_vertical()) {
-                        (false, false) => self.frame.set_pixel(sprite.x + x, sprite.y + y, rgb),
-                        (true, false) => self.frame.set_pixel(sprite.x + 7 - x, sprite.y + y, rgb),
-                        (false, true) => self.frame.set_pixel(sprite.x + x, sprite.y + 7 - y, rgb),
-                        (true, true) => {
-                            self.frame
-                                .set_pixel(sprite.x + 7 - x, sprite.y + 7 - y, rgb)
-                        }
-                    }
+        return (bg_pixel, bg_palette);
+    }
+
+    /// Returns pixel value, palette index and attribute byte of current
+    /// foreground pixel.
+    fn get_fg_pixel_info(&mut self) -> (u8, u8, u8) {
+        if self.mask.show_sprites() && (self.mask.leftmost_8pxl_sprite() || self.cycle >= 9) {
+            self.sprite_0_rendering = false;
+            for i in 0..self.sprite_count {
+                if self.oam2_data[i].x != 0 {
+                    continue;
                 }
+
+                let lo_pixel = ((self.fg_lo_shift[i] & 0x80) != 0) as u8;
+                let hi_pixel = ((self.fg_hi_shift[i] & 0x80) != 0) as u8;
+                let fg_pixel = (hi_pixel << 1) | lo_pixel;
+
+                let fg_palette = (self.oam2_data[i].attr & 0x3) + 0x4;
+                let fg_priority = ((self.oam2_data[i].attr & 0x20) == 0) as u8;
+
+                if fg_pixel != 0 {
+                    // Set a flag if it is sprite 0
+                    if self.oam2_data[i].index == 0 {
+                        self.sprite_0_rendering = true;
+                    }
+                    return (fg_pixel, fg_palette, fg_priority);
+                }
+            }
+        }
+
+        (0, 0, 0)
+    }
+
+    /// Update the sprite 0 hit flag.
+    fn update_sprite_zero_hit(&mut self) {
+        // Sprite 0 hit is a collision between a non 0 sprite pixel and bg pixel
+        // To be possible, we have to be drawing a sprite 0 pixel and both
+        // sprite and background rendering has to be enabled.
+        if !self.sprite_0_rendering || !self.mask.show_background() || !self.mask.show_sprites() {
+            return;
+        }
+
+        // If either bg or sprite left most pixels are disabled, don't check
+        // first 8 pixels.
+        if !(self.mask.leftmost_8pxl_background() | self.mask.leftmost_8pxl_sprite()) {
+            if (9..256).contains(&self.cycle) {
+                self.status.set_sprite_zero_hit(true);
+            }
+        } else if (1..256).contains(&self.cycle) {
+            self.status.set_sprite_zero_hit(true);
+        }
+    }
+
+    /// Returns the RBG value of the pixel with greyscale and colour emphasis
+    /// applied.
+    fn get_colour(&mut self, palette: u8, pixel: u8) -> Rgb {
+        let index = self
+            .bus
+            .read_data(0x3F00 + ((palette as u16) << 2) + pixel as u16)
+            & self.mask.grayscale_mask();
+
+        let c = COLOUR_PALETTE[(index as usize) & 0x3F];
+
+        match self.mask.colour_emphasis_enabled() {
+            false => c,
+            true => {
+                let (r, g, b) = self.mask.emphasise();
+                Rgb(
+                    (c.0 as f64 * r) as u8,
+                    (c.1 as f64 * g) as u8,
+                    (c.2 as f64 * b) as u8,
+                )
             }
         }
     }
