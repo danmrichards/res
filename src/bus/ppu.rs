@@ -1,5 +1,3 @@
-use std::borrow::Borrow;
-
 use crate::cartridge::Mirroring;
 
 /// PPUBus abstracts a single location for interacting with vram and palette
@@ -20,11 +18,6 @@ pub struct PPUBus {
 pub trait Memory {
     fn write_data(&mut self, addr: u16, value: u8);
     fn read_data(&mut self, addr: u16) -> u8;
-    fn bg_palette(&self, attribute_table: &[u8], col: usize, row: usize) -> [u8; 4];
-    fn sprite_palette(&self, idx: u8) -> [u8; 4];
-    fn read_chr_rom(&self, start: usize, end: usize) -> &[u8];
-    fn read_palette_table(&self, idx: usize) -> u8;
-    fn nametables(&self, addr: u16) -> (&[u8], &[u8]);
 }
 
 impl PPUBus {
@@ -97,79 +90,5 @@ impl Memory for PPUBus {
             0x3F00..=0x3FFF => self.palette_table[(addr - 0x3F00) as usize],
             _ => panic!("unexpected access to mirrored space {}", addr),
         }
-    }
-
-    /// Returns the background palette for a specific column and row on screen.
-    fn bg_palette(&self, attribute_table: &[u8], col: usize, row: usize) -> [u8; 4] {
-        // Each background tile is one byte in the nametable space in VRAM.
-        let attr_table_idx = row / 4 * 8 + col / 4;
-        let attr = attribute_table[attr_table_idx];
-
-        // A byte in an attribute table controls which palettes are used for 4x4
-        // tile blocks or 32x32 pixels.
-        //
-        // A byte is split into four 2-bit blocks and each block is assigning a
-        // background palette for four neighboring tiles.
-        //
-        // Determine which tile we're dealing with and match the appropriate part
-        // of the byte.
-        //
-        // Example:
-        //
-        //  0b11011000 => 0b|11|01|10|00 => 11,01,10,00
-        let palette_idx = match (col % 4 / 2, row % 4 / 2) {
-            (0, 0) => attr & 0b11,
-            (1, 0) => (attr >> 2) & 0b11,
-            (0, 1) => (attr >> 4) & 0b11,
-            (1, 1) => (attr >> 6) & 0b11,
-            (_, _) => panic!("invalid palette index"),
-        };
-
-        let start: usize = 1 + (palette_idx as usize) * 4;
-        [
-            self.palette_table[0],
-            self.palette_table[start],
-            self.palette_table[start + 1],
-            self.palette_table[start + 2],
-        ]
-    }
-
-    /// Returns the sprite palette for a given index
-    fn sprite_palette(&self, idx: u8) -> [u8; 4] {
-        let start = 0x11 + (idx * 4) as usize;
-        [
-            0,
-            self.palette_table[start],
-            self.palette_table[start + 1],
-            self.palette_table[start + 2],
-        ]
-    }
-
-    // TODO(dr): Remove this.
-    fn read_chr_rom(&self, start: usize, end: usize) -> &[u8] {
-        self.chr_rom[start..=end].borrow()
-    }
-
-    // TODO(dr): Remove this.
-    fn read_palette_table(&self, idx: usize) -> u8 {
-        self.palette_table[idx]
-    }
-
-    // TODO(dr): Remove this.
-    fn nametables(&self, addr: u16) -> (&[u8], &[u8]) {
-        let (main_nametable, second_nametable) = match (&self.mirroring, addr) {
-            (Mirroring::Vertical, 0x2000)
-            | (Mirroring::Vertical, 0x2800)
-            | (Mirroring::Horizontal, 0x2000)
-            | (Mirroring::Horizontal, 0x2400) => (&self.vram[0..0x400], &self.vram[0x400..0x800]),
-            (Mirroring::Vertical, 0x2400)
-            | (Mirroring::Vertical, 0x2C00)
-            | (Mirroring::Horizontal, 0x2800)
-            | (Mirroring::Horizontal, 0x2C00) => (&self.vram[0x400..0x800], &self.vram[0..0x400]),
-            (_, _) => {
-                panic!("Not supported mirroring type {:?}", self.mirroring);
-            }
-        };
-        (main_nametable, second_nametable)
     }
 }

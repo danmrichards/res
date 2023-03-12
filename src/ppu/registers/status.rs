@@ -1,8 +1,3 @@
-const NOTUSED: u8 = 0b00000001;
-const NOTUSED2: u8 = 0b00000010;
-const NOTUSED3: u8 = 0b00000100;
-const NOTUSED4: u8 = 0b00001000;
-const NOTUSED5: u8 = 0b00010000;
 const SPRITE_OVERFLOW: u8 = 0b00100000;
 const SPRITE_ZERO_HIT: u8 = 0b01000000;
 const VBLANK_STARTED: u8 = 0b10000000;
@@ -68,11 +63,6 @@ impl Status {
     /// Resets VBLANK status.
     pub fn reset_vblank_status(&mut self) {
         self.bits &= !VBLANK_STARTED
-    }
-
-    /// Returns true if in VBLANK.
-    pub fn is_in_vblank(&self) -> bool {
-        self.bits & VBLANK_STARTED == VBLANK_STARTED
     }
 
     /// Returns current status of the register.

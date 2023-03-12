@@ -181,7 +181,7 @@ mod interrupt {
         itype: InterruptType::NMI,
         vector_addr: 0xFFFA,
         status_mask: 0b00100000,
-        cpu_cycles: 2,
+        cpu_cycles: 7,
     };
 }
 
@@ -360,7 +360,7 @@ impl<'a> CPU<'a> {
     pub fn clock(&mut self) {
         let ref opcodes: HashMap<u8, &'static instructions::OpCode> = *instructions::OPCODES;
 
-        if let Some(_nmi) = self.bus.nmi_status() {
+        if self.bus.nmi_status() {
             self.interrupt(interrupt::NMI);
         }
 

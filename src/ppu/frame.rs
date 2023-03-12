@@ -17,7 +17,7 @@ impl Frame {
     }
 
     /// Sets a pixel in the given position with the given colour.
-    pub fn set_pixel(&mut self, x: usize, y: usize, rgb: &palette::Rgb) {
+    pub fn set_pixel(&mut self, x: usize, y: usize, rgb: palette::Rgb) {
         let base = y * 3 * Frame::WIDTH + x * 3;
         if base + 2 < self.data.len() {
             self.data[base] = rgb.0;
