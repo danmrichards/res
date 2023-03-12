@@ -65,11 +65,6 @@ impl Status {
         self.bits &= !VBLANK_STARTED
     }
 
-    /// Returns true if in VBLANK.
-    pub fn is_in_vblank(&self) -> bool {
-        self.bits & VBLANK_STARTED == VBLANK_STARTED
-    }
-
     /// Returns current status of the register.
     pub fn snapshot(&self) -> u8 {
         self.bits
