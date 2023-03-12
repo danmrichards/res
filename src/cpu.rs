@@ -360,8 +360,10 @@ impl<'a> CPU<'a> {
     pub fn clock(&mut self) {
         let ref opcodes: HashMap<u8, &'static instructions::OpCode> = *instructions::OPCODES;
 
-        if let Some(_nmi) = self.bus.nmi_status() {
+        if self.bus.nmi_status() {
             self.interrupt(interrupt::NMI);
+
+            // TODO(dr): Update cycles properly for NMI.
         }
 
         // Get the opcode at the program counter.

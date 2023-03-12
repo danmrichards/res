@@ -1,11 +1,11 @@
-const NAMETABLE1: u8 = 0b00000001;
-const NAMETABLE2: u8 = 0b00000010;
-const VRAM_ADD_INCREMENT: u8 = 0b00000100;
-const SPRITE_PATTERN_ADDR: u8 = 0b00001000;
-const BACKROUND_PATTERN_ADDR: u8 = 0b00010000;
+const NMI_ENABLED: u8 = 0b10000000;
+const MASTER_SLAVE: u8 = 0b01000000;
 const SPRITE_SIZE: u8 = 0b00100000;
-const MASTER_SLAVE_SELECT: u8 = 0b01000000;
-const GENERATE_NMI: u8 = 0b10000000;
+const BG_ADDRESS: u8 = 0b00010000;
+const SPRITE_ADDRESS: u8 = 0b00001000;
+const VRAM_INCREMENT: u8 = 0b00000100;
+const NAMETABLE_V: u8 = 0b00000010;
+const NAMETABLE_H: u8 = 0b00000001;
 
 /// Represents the PPU control register.
 pub struct Control {
@@ -35,8 +35,8 @@ impl Control {
     }
 
     /// Returns the amount to increment the VRAM addr by.
-    pub fn vram_addr_increment(&self) -> u8 {
-        if self.bits & VRAM_ADD_INCREMENT != VRAM_ADD_INCREMENT {
+    pub fn vram_addr_increment(&self) -> u16 {
+        if self.bits & VRAM_INCREMENT != VRAM_INCREMENT {
             1
         } else {
             32
@@ -45,13 +45,13 @@ impl Control {
 
     /// Returns true if the PPU control is set to allow generation of a VBLANK
     /// interrupt.
-    pub fn vblank_nmi(&self) -> bool {
-        return self.bits & GENERATE_NMI == GENERATE_NMI;
+    pub fn nmi_enabled(&self) -> bool {
+        return self.bits & NMI_ENABLED == NMI_ENABLED;
     }
 
     /// Returns the address of the CHR ROM bank to use for background tiles.
     pub fn bgrnd_pattern_addr(&self) -> u16 {
-        if self.bits & BACKROUND_PATTERN_ADDR != BACKROUND_PATTERN_ADDR {
+        if self.bits & BG_ADDRESS != BG_ADDRESS {
             0
         } else {
             0x1000
@@ -60,22 +60,26 @@ impl Control {
 
     /// Returns the address of the CHR ROM bank to use for sprite tiles.
     pub fn sprite_pattern_addr(&self) -> u16 {
-        if self.bits & SPRITE_PATTERN_ADDR != SPRITE_PATTERN_ADDR {
+        if self.bits & SPRITE_ADDRESS != SPRITE_ADDRESS {
             0
         } else {
             0x1000
         }
     }
 
-    /// Returns the address of the current nametable.
-    pub fn nametable_addr(&self) -> u16 {
-        match self.bits & 0b11 {
-            0 => 0x2000,
-            1 => 0x2400,
-            2 => 0x2800,
-            3 => 0x2C00,
-            _ => panic!("not possible"),
-        }
+    /// Returns the sprite size flag value.
+    pub fn sprite_size(&self) -> bool {
+        return self.bits & SPRITE_SIZE == SPRITE_SIZE;
+    }
+
+    /// Returns the nametable H flag value
+    pub fn nta_h(&self) -> bool {
+        return self.bits & NAMETABLE_H == NAMETABLE_H;
+    }
+
+    /// Returns the nametable V flag value
+    pub fn nta_v(&self) -> bool {
+        return self.bits & NAMETABLE_V == NAMETABLE_V;
     }
 
     /// Sets the register to data.

@@ -73,8 +73,8 @@ impl<'a> SystemBus<'a> {
     }
 
     /// Returns the NMI status of the PPU.
-    pub fn nmi_status(&mut self) -> Option<bool> {
-        self.ppu.nmi_interrupt.take()
+    pub fn nmi_status(&mut self) -> bool {
+        self.ppu.poll_nmi()
     }
 
     /// Returns the number of rendered frames from the PPU.
@@ -120,6 +120,8 @@ impl Memory for SystemBus<'_> {
     }
 
     fn mem_write_byte(&mut self, addr: u16, data: u8) {
+        self.ppu.refresh_open_bus(data);
+
         match addr {
             RAM..=RAM_MIRRORS_END => {
                 let mirror_down_addr = addr & 0b11111111111;
@@ -132,7 +134,6 @@ impl Memory for SystemBus<'_> {
             0x2001 => {
                 self.ppu.write_mask(data);
             }
-
             0x2002 => panic!("attempt to write to PPU status register"),
 
             0x2003 => {
@@ -144,7 +145,6 @@ impl Memory for SystemBus<'_> {
             0x2005 => {
                 self.ppu.write_scroll(data);
             }
-
             0x2006 => {
                 self.ppu.write_addr(data);
             }
@@ -154,15 +154,12 @@ impl Memory for SystemBus<'_> {
             0x4000..=0x4013 | 0x4015 => {
                 //ignore APU
             }
-
             0x4016 => {
                 self.joypad1.write(data);
             }
-
             0x4017 => {
                 // ignore joypad 2
             }
-
             0x4014 => {
                 let mut buffer: [u8; 256] = [0; 256];
                 let hi: u16 = (data as u16) << 8;
@@ -172,7 +169,6 @@ impl Memory for SystemBus<'_> {
 
                 self.ppu.write_oam_dma(&buffer);
             }
-
             0x2008..=PPU_REGISTERS_MIRRORS_END => {
                 let mirror_down_addr = addr & 0b00100000_00000111;
                 self.mem_write_byte(mirror_down_addr, data);
