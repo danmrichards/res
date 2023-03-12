@@ -181,7 +181,7 @@ mod interrupt {
         itype: InterruptType::NMI,
         vector_addr: 0xFFFA,
         status_mask: 0b00100000,
-        cpu_cycles: 2,
+        cpu_cycles: 7,
     };
 }
 
@@ -362,8 +362,6 @@ impl<'a> CPU<'a> {
 
         if self.bus.nmi_status() {
             self.interrupt(interrupt::NMI);
-
-            // TODO(dr): Update cycles properly for NMI.
         }
 
         // Get the opcode at the program counter.
