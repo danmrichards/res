@@ -34,10 +34,10 @@ Options:
 ## Building from source
 
 ### Pre-requisites
-First install SDL development libraries. Either with your package manage, example
+First install the SDL development libraries. Either with your package manager, example
 on Ubuntu:
 
-```bash
+```shell
 $ sudo apt-get install libsdl2-dev
 ```
 
@@ -46,17 +46,28 @@ Or by visiting the [SDL][sdl] website.
 Next you will need to install the Rust toolchain, see the [Rust][rust] website
 for instructions.
 
+Lastly, install the [just][just] command runner. This is technically optional,
+but it contains shortcuts for building, linting etc that will be referenced
+below.
+
 ### Building
 
-Build using cargo:
+A normal release build can be created via:
 
-```
-cargo build -r
+```shell
+$ just release
 ```
 
-The emulator can then be run from the `target/release/nesoxide` relative to the
+A development/debug build can be created via:
+
+```shell
+$ just debug
+```
+
+The emulator can then be run from the `target/[debug|release]/nesoxide` relative to the
 root of the repository
 
 [nes]: https://en.wikipedia.org/wiki/Nintendo_Entertainment_System
 [rust]: https://www.rust-lang.org/
-[sdl]: https://www.libsdl.org/
+[sdl]: https://wiki.libsdl.org/SDL2/Installation
+[just]: https://github.com/casey/just

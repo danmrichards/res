@@ -1,15 +1,12 @@
 use crate::cpu::AddressingMode;
 use crate::cpu::Memory;
-use crate::cpu::CPU;
-use crate::instructions;
-use std::collections::HashMap;
+use crate::cpu::Cpu;
+use crate::instructions::OPCODES;
 
-pub fn trace(cpu: &mut CPU) -> String {
-    let ref opcodes: HashMap<u8, &'static instructions::OpCode> = *instructions::OPCODES;
-
+pub fn trace(cpu: &mut Cpu) -> String {
     // Get the current opcode.
     let code = cpu.mem_read_byte(cpu.pc);
-    let op = opcodes.get(&code).unwrap();
+    let op = *OPCODES.get(&code).unwrap();
 
     let begin = cpu.pc;
     let mut hex_dump = vec![];
@@ -27,7 +24,7 @@ pub fn trace(cpu: &mut CPU) -> String {
     // Build an assembly string representation of the operation.
     let asm_op = match op.len {
         1 => match op.code {
-            0x0A | 0x4A | 0x2A | 0x6A => format!("A "),
+            0x0A | 0x4A | 0x2A | 0x6A => "A ".to_string(),
             _ => String::from(""),
         },
         2 => {
@@ -135,21 +132,19 @@ pub fn trace(cpu: &mut CPU) -> String {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::bus::Bus;
+    use crate::bus::SystemBus;
     use crate::cartridge::test::test_rom;
-    use crate::joypad;
-    use crate::ppu::NESPPU;
 
     #[test]
     fn test_format_trace() {
-        let mut bus = Bus::new(test_rom(), |ppu: &NESPPU, joypad: &mut joypad::Joypad| {});
+        let mut bus = SystemBus::new(test_rom(), |_| {});
         bus.mem_write_byte(100, 0xA2);
         bus.mem_write_byte(101, 0x01);
         bus.mem_write_byte(102, 0xCA);
         bus.mem_write_byte(103, 0x88);
         bus.mem_write_byte(104, 0x00);
 
-        let mut cpu = CPU::new(bus);
+        let mut cpu = Cpu::new(bus);
         cpu.pc = 0x64;
         cpu.a = 1;
         cpu.x = 2;
@@ -176,14 +171,14 @@ mod test {
 
     #[test]
     fn test_format_mem_access() {
-        let mut bus = Bus::new(test_rom(), |ppu: &NESPPU, joypad: &mut joypad::Joypad| {});
+        let mut bus = SystemBus::new(test_rom(), |_| {});
         bus.mem_write_byte(100, 0x11);
         bus.mem_write_byte(101, 0x33);
-        bus.mem_write_byte(0x33, 00);
-        bus.mem_write_byte(0x34, 04);
+        bus.mem_write_byte(0x33, 0x00);
+        bus.mem_write_byte(0x34, 0x04);
         bus.mem_write_byte(0x400, 0xAA);
 
-        let mut cpu = CPU::new(bus);
+        let mut cpu = Cpu::new(bus);
         cpu.pc = 0x64;
         cpu.y = 0;
 

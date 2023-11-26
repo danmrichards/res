@@ -1,8 +1,8 @@
 use crate::cartridge::Rom;
 use crate::cpu::Memory;
 use crate::joypad::Joypad;
-use crate::ppu::NESPPU;
-use crate::ppu::PPU;
+use crate::ppu::NesPpu;
+use crate::ppu::Ppu;
 
 use super::PPUBus;
 
@@ -29,7 +29,7 @@ const PRG_END: u16 = 0xFFFF;
 pub struct SystemBus<'a> {
     ram: [u8; 2048],
     prg_rom: Vec<u8>,
-    ppu: NESPPU<'a>,
+    ppu: NesPpu<'a>,
     pub joypad1: Joypad,
 }
 
@@ -40,12 +40,12 @@ impl<'a> SystemBus<'a> {
         F: FnMut(&[u8]) + 'a,
     {
         let ppu_bus = PPUBus::new(rom.chr, rom.screen_mirroring);
-        let ppu = NESPPU::new(Box::new(ppu_bus), Box::new(render_callback));
+        let ppu = NesPpu::new(Box::new(ppu_bus), Box::new(render_callback));
 
         SystemBus {
             ram: [0; 2048],
             prg_rom: rom.prg,
-            ppu: ppu,
+            ppu,
             joypad1: Joypad::new(),
         }
     }
@@ -55,7 +55,7 @@ impl<'a> SystemBus<'a> {
         addr -= PRG;
         if self.prg_rom.len() == 0x4000 && addr >= 0x4000 {
             // Mirror if needed
-            addr = addr % 0x4000;
+            addr %= 0x4000;
         }
         self.prg_rom[addr as usize]
     }
@@ -113,7 +113,6 @@ impl Memory for SystemBus<'_> {
             PRG..=PRG_END => self.read_prg(addr),
 
             _ => {
-                println!("Ignoring mem access at {:x}", addr);
                 0
             }
         }
