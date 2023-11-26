@@ -1,6 +1,5 @@
 use crate::bus::SystemBus;
-use crate::instructions;
-use std::collections::HashMap;
+use crate::instructions::OPCODES;
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
@@ -101,7 +100,7 @@ const STACK_RESET: u8 = 0xFD;
 const STATUS_DEFAULT: u8 = 0b00100100;
 
 /// Represents the NES CPU.
-pub struct CPU<'a> {
+pub struct Cpu<'a> {
     /// Accumulator, a special register for storing results of arithmetic and
     /// logical operations.
     pub a: u8,
@@ -142,7 +141,7 @@ pub struct CPU<'a> {
     pub bus: SystemBus<'a>,
 }
 
-impl Memory for CPU<'_> {
+impl Memory for Cpu<'_> {
     /// Returns the byte at the given address in memory.
     fn mem_read_byte(&mut self, addr: u16) -> u8 {
         self.bus.mem_read_byte(addr)
@@ -167,7 +166,7 @@ impl Memory for CPU<'_> {
 mod interrupt {
     #[derive(PartialEq, Eq)]
     pub enum InterruptType {
-        NMI,
+        Nmi,
     }
 
     #[derive(PartialEq, Eq)]
@@ -178,17 +177,17 @@ mod interrupt {
         pub(super) cpu_cycles: u8,
     }
     pub(super) const NMI: Interrupt = Interrupt {
-        itype: InterruptType::NMI,
+        itype: InterruptType::Nmi,
         vector_addr: 0xFFFA,
         status_mask: 0b00100000,
         cpu_cycles: 7,
     };
 }
 
-impl<'a> CPU<'a> {
+impl<'a> Cpu<'a> {
     /// Returns an instantiated CPU.
-    pub fn new<'b>(bus: SystemBus<'b>) -> CPU<'b> {
-        CPU {
+    pub fn new(bus: SystemBus) -> Cpu {
+        Cpu {
             a: 0,
             x: 0,
             y: 0,
@@ -216,12 +215,12 @@ impl<'a> CPU<'a> {
     /// Pops a byte off the stack and increments the stack pointer.
     fn stack_pop_byte(&mut self) -> u8 {
         self.sp = self.sp.wrapping_add(1);
-        self.mem_read_byte((STACK as u16) + self.sp as u16)
+        self.mem_read_byte(STACK + self.sp as u16)
     }
 
     /// Pushes a byte onto the stack and decrements the stack pointer.
     fn stack_push_byte(&mut self, data: u8) {
-        self.mem_write_byte((STACK as u16) + self.sp as u16, data);
+        self.mem_write_byte(STACK + self.sp as u16, data);
         self.sp = self.sp.wrapping_sub(1);
     }
 
@@ -284,7 +283,7 @@ impl<'a> CPU<'a> {
     /// callback function before each opcode iteration.
     pub fn run_with_callback<F>(&mut self, mut callback: F)
     where
-        F: FnMut(&mut CPU),
+        F: FnMut(&mut Cpu),
     {
         loop {
             callback(self);
@@ -333,7 +332,7 @@ impl<'a> CPU<'a> {
             AddressingMode::IndirectX => {
                 let base = self.mem_read_byte(operand);
 
-                let ptr: u8 = (base as u8).wrapping_add(self.x);
+                let ptr: u8 = base.wrapping_add(self.x);
                 let lo = self.mem_read_byte(ptr as u16);
                 let hi = self.mem_read_byte(ptr.wrapping_add(1) as u16);
 
@@ -343,7 +342,7 @@ impl<'a> CPU<'a> {
                 let base = self.mem_read_byte(operand);
 
                 let lo = self.mem_read_byte(base as u16);
-                let hi = self.mem_read_byte((base as u8).wrapping_add(1) as u16);
+                let hi = self.mem_read_byte(base.wrapping_add(1) as u16);
 
                 let deref_base = u16::from_le_bytes([lo, hi]);
                 let deref = deref_base.wrapping_add(self.y as u16);
@@ -358,8 +357,6 @@ impl<'a> CPU<'a> {
 
     /// Clocks the CPU exactly once.
     pub fn clock(&mut self) {
-        let ref opcodes: HashMap<u8, &'static instructions::OpCode> = *instructions::OPCODES;
-
         if self.bus.nmi_status() {
             self.interrupt(interrupt::NMI);
         }
@@ -370,9 +367,9 @@ impl<'a> CPU<'a> {
         let current_pc = self.pc;
 
         // Lookup the full opcode details.
-        let opcode = opcodes
+        let opcode = *OPCODES
             .get(&code)
-            .expect(&format!("OpCode {:x} is not recognized", code));
+            .unwrap_or_else(|| panic!("OpCode {:x} is not recognized", code));
 
         match opcode.code {
             // Official opcodes.
@@ -663,8 +660,6 @@ impl<'a> CPU<'a> {
 
             // TAS.
             0x9B => self.tas(&opcode.mode),
-
-            _ => todo!("{:02x} {}", opcode.code, opcode.mnemonic),
         }
 
         // Inform the bus the number of CPU cycles for this operation in
@@ -737,7 +732,7 @@ impl<'a> CPU<'a> {
             self.unset_carry_flag();
         }
 
-        data = data << 1;
+        data <<= 1;
 
         self.set_accumulator(data)
     }
@@ -760,7 +755,7 @@ impl<'a> CPU<'a> {
             self.unset_carry_flag();
         }
 
-        data = data << 1;
+        data <<= 1;
         self.mem_write_byte(addr, data);
 
         self.update_zero_and_negative_flags(data);
@@ -1088,7 +1083,7 @@ impl<'a> CPU<'a> {
             self.unset_carry_flag();
         }
 
-        data = data >> 1;
+        data >>= 1;
 
         self.set_accumulator(data);
     }
@@ -1108,7 +1103,7 @@ impl<'a> CPU<'a> {
             self.unset_carry_flag();
         }
 
-        data = data >> 1;
+        data >>= 1;
 
         self.mem_write_byte(addr, data);
         self.update_zero_and_negative_flags(data);
@@ -1189,7 +1184,7 @@ impl<'a> CPU<'a> {
             self.unset_carry_flag();
         }
 
-        data = data << 1;
+        data <<= 1;
         if carry_set {
             data |= 1;
         }
@@ -1214,7 +1209,7 @@ impl<'a> CPU<'a> {
             self.unset_carry_flag();
         }
 
-        data = data << 1;
+        data <<= 1;
         if carry_set {
             data |= 0b00000001;
         }
@@ -1241,7 +1236,7 @@ impl<'a> CPU<'a> {
             self.unset_carry_flag();
         }
 
-        data = data >> 1;
+        data >>= 1;
         if carry_set {
             data |= 0b10000000;
         }
@@ -1266,7 +1261,7 @@ impl<'a> CPU<'a> {
             self.unset_carry_flag();
         }
 
-        data = data >> 1;
+        data >>= 1;
         if carry_set {
             data |= 0b10000000;
         }
@@ -1802,20 +1797,11 @@ impl<'a> CPU<'a> {
     fn interrupt(&mut self, interrupt: interrupt::Interrupt) {
         self.stack_push_word(self.pc);
 
-        let mut status = self.status.clone();
+        let mut status = self.status;
 
-        if interrupt.status_mask & 0b010000 == 1 {
-            status |= BREAK;
-        } else {
-            status &= !BREAK;
-        }
-
-        if interrupt.status_mask & 0b100000 == 1 {
-            status |= BREAK2;
-        } else {
-            status &= !BREAK2;
-        }
-
+        status &= !BREAK;
+        status &= !BREAK2;
+    
         self.stack_push_byte(status);
 
         // Set interrupt disable flag.
@@ -1840,19 +1826,14 @@ mod test {
     use super::*;
     use crate::cartridge::test;
     use crate::cartridge::Rom;
-    use crate::joypad;
-    use crate::ppu::NESPPU;
     use crate::trace::trace;
     use std::fs::File;
     use std::io::{BufRead, BufReader};
 
     #[test]
     fn test_0xa9_lda_immediate_load_data() {
-        let bus = Bus::new(
-            test::test_rom(),
-            |ppu: &NESPPU, joypad: &mut joypad::Joypad| {},
-        );
-        let mut cpu = CPU::new(bus);
+        let bus = SystemBus::new(test::test_rom(),|_| {});
+        let mut cpu = Cpu::new(bus);
         cpu.load_and_run(vec![0xa9, 0x05, 0x00]);
 
         assert_eq!(cpu.a, 0x05);
@@ -1862,11 +1843,8 @@ mod test {
 
     #[test]
     fn test_0xa9_lda_zero_flag() {
-        let bus = Bus::new(
-            test::test_rom(),
-            |ppu: &NESPPU, joypad: &mut joypad::Joypad| {},
-        );
-        let mut cpu = CPU::new(bus);
+        let bus = SystemBus::new(test::test_rom(),|_| {});
+        let mut cpu = Cpu::new(bus);
         cpu.load_and_run(vec![0xa9, 0x00, 0x00]);
 
         assert_eq!(cpu.status & 0b00000010, 0b10);
@@ -1874,11 +1852,8 @@ mod test {
 
     #[test]
     fn test_lda_from_memory() {
-        let bus = Bus::new(
-            test::test_rom(),
-            |ppu: &NESPPU, joypad: &mut joypad::Joypad| {},
-        );
-        let mut cpu = CPU::new(bus);
+        let bus = SystemBus::new(test::test_rom(),|_| {});
+        let mut cpu = Cpu::new(bus);
         cpu.mem_write_byte(0x10, 0x55);
 
         cpu.load_and_run(vec![0xa5, 0x10, 0x00]);
@@ -1888,11 +1863,8 @@ mod test {
 
     #[test]
     fn test_sta() {
-        let bus = Bus::new(
-            test::test_rom(),
-            |ppu: &NESPPU, joypad: &mut joypad::Joypad| {},
-        );
-        let mut cpu = CPU::new(bus);
+        let bus = SystemBus::new(test::test_rom(),|_| {});
+        let mut cpu = Cpu::new(bus);
         cpu.load_and_run(vec![0xa9, 0x05, 0x85, 0x20, 0x00]);
 
         assert_eq!(cpu.a, 0x05);
@@ -1901,11 +1873,8 @@ mod test {
 
     #[test]
     fn test_0xaa_tax_move_a_to_x() {
-        let bus = Bus::new(
-            test::test_rom(),
-            |ppu: &NESPPU, joypad: &mut joypad::Joypad| {},
-        );
-        let mut cpu = CPU::new(bus);
+        let bus = SystemBus::new(test::test_rom(),|_| {});
+        let mut cpu = Cpu::new(bus);
         cpu.load(vec![0xaa, 0x00]);
         cpu.reset();
         cpu.pc = 0x0600;
@@ -1917,11 +1886,8 @@ mod test {
 
     #[test]
     fn test_0xe8_inx_increment_x() {
-        let bus = Bus::new(
-            test::test_rom(),
-            |ppu: &NESPPU, joypad: &mut joypad::Joypad| {},
-        );
-        let mut cpu = CPU::new(bus);
+        let bus = SystemBus::new(test::test_rom(),|_| {});
+        let mut cpu = Cpu::new(bus);
         cpu.load(vec![0xe8, 0x00]);
         cpu.reset();
         cpu.pc = 0x0600;
@@ -1933,11 +1899,8 @@ mod test {
 
     #[test]
     fn test_inx_overflow() {
-        let bus = Bus::new(
-            test::test_rom(),
-            |ppu: &NESPPU, joypad: &mut joypad::Joypad| {},
-        );
-        let mut cpu = CPU::new(bus);
+        let bus = SystemBus::new(test::test_rom(),|_| {});
+        let mut cpu = Cpu::new(bus);
         cpu.load(vec![0xe8, 0xe8, 0x00]);
         cpu.reset();
 
@@ -1950,11 +1913,8 @@ mod test {
 
     #[test]
     fn test_5_ops_working_together() {
-        let bus = Bus::new(
-            test::test_rom(),
-            |ppu: &NESPPU, joypad: &mut joypad::Joypad| {},
-        );
-        let mut cpu = CPU::new(bus);
+        let bus = SystemBus::new(test::test_rom(),|_| {});
+        let mut cpu = Cpu::new(bus);
         cpu.load_and_run(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
 
         assert_eq!(cpu.x, 0xc1)
@@ -1966,8 +1926,8 @@ mod test {
         let bytes: Vec<u8> = std::fs::read("nestest.nes").unwrap();
         let rom = Rom::new(&bytes).unwrap();
 
-        let bus = Bus::new(rom, |ppu: &NESPPU, joypad: &mut joypad::Joypad| {});
-        let mut cpu = CPU::new(bus);
+        let bus = SystemBus::new(rom, |_| {});
+        let mut cpu = Cpu::new(bus);
         cpu.reset();
         cpu.pc = 0xC000;
 

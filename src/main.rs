@@ -12,7 +12,7 @@ mod trace;
 use bus::SystemBus;
 use cartridge::Rom;
 use clap::Parser;
-use cpu::CPU;
+use cpu::Cpu;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
@@ -103,7 +103,7 @@ fn main() {
         canvas.present();
     });
 
-    let mut cpu = CPU::new(bus);
+    let mut cpu = Cpu::new(bus);
     cpu.reset();
 
     let mut timer = Timer::new();

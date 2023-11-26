@@ -46,7 +46,7 @@ impl Control {
     /// Returns true if the PPU control is set to allow generation of a VBLANK
     /// interrupt.
     pub fn nmi_enabled(&self) -> bool {
-        return self.bits & NMI_ENABLED == NMI_ENABLED;
+        self.bits & NMI_ENABLED == NMI_ENABLED
     }
 
     /// Returns the address of the CHR ROM bank to use for background tiles.
@@ -69,17 +69,17 @@ impl Control {
 
     /// Returns the sprite size flag value.
     pub fn sprite_size(&self) -> bool {
-        return self.bits & SPRITE_SIZE == SPRITE_SIZE;
+        self.bits & SPRITE_SIZE == SPRITE_SIZE
     }
 
     /// Returns the nametable H flag value
     pub fn nta_h(&self) -> bool {
-        return self.bits & NAMETABLE_H == NAMETABLE_H;
+        self.bits & NAMETABLE_H == NAMETABLE_H
     }
 
     /// Returns the nametable V flag value
     pub fn nta_v(&self) -> bool {
-        return self.bits & NAMETABLE_V == NAMETABLE_V;
+        self.bits & NAMETABLE_V == NAMETABLE_V
     }
 
     /// Sets the register to data.

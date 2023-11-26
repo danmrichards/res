@@ -20,8 +20,10 @@ use self::tile::Tile;
 const OAM_SIZE: usize = 0x100;
 const OAM2_SIZE: usize = 0x8;
 
+type RenderFn<'rcall> = Box<dyn FnMut(&[u8]) + 'rcall>;
+
 /// Represents the NES PPU.
-pub struct NESPPU<'rcall> {
+pub struct NesPpu<'rcall> {
     /// Bus to allow PPU to interact with RAM/ROM.
     bus: Box<dyn Memory>,
     open_bus: u8,
@@ -72,10 +74,10 @@ pub struct NESPPU<'rcall> {
     frame: Frame,
 
     /// Callback to render frame.
-    render_callback: Box<dyn FnMut(&[u8]) + 'rcall>,
+    render_callback: RenderFn<'rcall>,
 }
 
-pub trait PPU {
+pub trait Ppu {
     fn write_addr(&mut self, value: u8);
     fn write_ctrl(&mut self, value: u8);
     fn write_mask(&mut self, value: u8);
@@ -90,13 +92,13 @@ pub trait PPU {
     fn read_frame_count(&self) -> u128;
 }
 
-impl<'a> NESPPU<'a> {
+impl<'a> NesPpu<'a> {
     /// Returns an instantiated PPU.
-    pub fn new<'rcall, F>(bus: Box<dyn Memory>, render_callback: F) -> NESPPU<'rcall>
+    pub fn new<'rcall, F>(bus: Box<dyn Memory>, render_callback: F) -> NesPpu<'rcall>
     where
         F: FnMut(&[u8]) + 'rcall,
     {
-        NESPPU {
+        NesPpu {
             bus,
             open_bus: 0,
             open_bus_timer: 0,
@@ -672,7 +674,7 @@ impl<'a> NESPPU<'a> {
     }
 }
 
-impl PPU for NESPPU<'_> {
+impl Ppu for NesPpu<'_> {
     /// Writes value to the address register.
     fn write_addr(&mut self, value: u8) {
         // Because the PPU address is a 14 bit address and the CPU uses an 8 bit
@@ -815,9 +817,9 @@ pub mod test {
     use super::*;
 
     /// Returns an instatiated PPU with an empty ROM loaded.
-    pub fn new_empty_rom_ppu() -> NESPPU<'static> {
+    pub fn new_empty_rom_ppu() -> NesPpu<'static> {
         let bus = PPUBus::new(vec![0; 2048], Mirroring::Horizontal);
-        NESPPU::new(Box::new(bus), |_| {})
+        NesPpu::new(Box::new(bus), |_| {})
     }
 
     #[test]
@@ -911,7 +913,7 @@ pub mod test {
     #[test]
     fn test_vram_vertical_mirror() {
         let bus = PPUBus::new(vec![0; 2048], Mirroring::Vertical);
-        let ppu = NESPPU::new(Box::new(bus), |_| {});
+        let mut ppu = NesPpu::new(Box::new(bus), |_| {});
 
         ppu.write_addr(0x20);
         ppu.write_addr(0x05);
