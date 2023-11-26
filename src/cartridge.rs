@@ -98,9 +98,7 @@ pub mod test {
 
     pub fn test_rom() -> Rom {
         let test_rom = create_rom(TestRom {
-            header: vec![
-                0x4E, 0x45, 0x53, 0x1A, 0x02, 0x01, 0x31, 00, 00, 00, 00, 00, 00, 00, 00, 00,
-            ],
+            header: vec![0x4E, 0x45, 0x53, 0x1A],
             trainer: None,
             prg: vec![1; 2 * PRG_PAGE_SIZE],
             chr: vec![2; CHR_PAGE_SIZE],

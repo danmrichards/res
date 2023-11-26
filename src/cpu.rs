@@ -1,3 +1,5 @@
+use core::panic;
+
 use crate::bus::SystemBus;
 use crate::instructions::OPCODES;
 
@@ -599,7 +601,7 @@ impl<'a> Cpu<'a> {
 
             // HLT.
             0x02 | 0x12 | 0x22 | 0x32 | 0x42 | 0x52 | 0x62 | 0x72 | 0x92 | 0xB2 | 0xD2 | 0xF2 => {
-                return
+                panic!("HLT opcode called");
             }
 
             // LAS.
@@ -1830,11 +1832,14 @@ mod test {
     use std::fs::File;
     use std::io::{BufRead, BufReader};
 
+    // TODO: Refactor these tests to clock the CPU manually or at least have
+    // an exist condition. Right now they're just spinning until the program
+    // counter overflows!
     #[test]
     fn test_0xa9_lda_immediate_load_data() {
         let bus = SystemBus::new(test::test_rom(), |_| {});
         let mut cpu = Cpu::new(bus);
-        cpu.load_and_run(vec![0xa9, 0x05, 0x00]);
+        cpu.load_and_run(vec![0xa9, 0x05]);
 
         assert_eq!(cpu.a, 0x05);
         assert_eq!(cpu.status & 0b00000010, 0b00);
