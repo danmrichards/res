@@ -15,3 +15,6 @@ fmt:
 
 lint:
     cargo clippy --all-targets --all-features
+
+test:
+    cargo test --all-features
