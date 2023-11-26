@@ -15,3 +15,6 @@ fmt:
 
 lint:
     cargo clippy --all-targets --all-features
+
+test:
+    RUST_BACKTRACE=1 cargo test --all-features

@@ -112,9 +112,7 @@ impl Memory for SystemBus<'_> {
             }
             PRG..=PRG_END => self.read_prg(addr),
 
-            _ => {
-                0
-            }
+            _ => 0,
         }
     }
 

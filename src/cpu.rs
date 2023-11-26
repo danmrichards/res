@@ -1801,7 +1801,7 @@ impl<'a> Cpu<'a> {
 
         status &= !BREAK;
         status &= !BREAK2;
-    
+
         self.stack_push_byte(status);
 
         // Set interrupt disable flag.
@@ -1832,7 +1832,7 @@ mod test {
 
     #[test]
     fn test_0xa9_lda_immediate_load_data() {
-        let bus = SystemBus::new(test::test_rom(),|_| {});
+        let bus = SystemBus::new(test::test_rom(), |_| {});
         let mut cpu = Cpu::new(bus);
         cpu.load_and_run(vec![0xa9, 0x05, 0x00]);
 
@@ -1843,7 +1843,7 @@ mod test {
 
     #[test]
     fn test_0xa9_lda_zero_flag() {
-        let bus = SystemBus::new(test::test_rom(),|_| {});
+        let bus = SystemBus::new(test::test_rom(), |_| {});
         let mut cpu = Cpu::new(bus);
         cpu.load_and_run(vec![0xa9, 0x00, 0x00]);
 
@@ -1852,7 +1852,7 @@ mod test {
 
     #[test]
     fn test_lda_from_memory() {
-        let bus = SystemBus::new(test::test_rom(),|_| {});
+        let bus = SystemBus::new(test::test_rom(), |_| {});
         let mut cpu = Cpu::new(bus);
         cpu.mem_write_byte(0x10, 0x55);
 
@@ -1863,7 +1863,7 @@ mod test {
 
     #[test]
     fn test_sta() {
-        let bus = SystemBus::new(test::test_rom(),|_| {});
+        let bus = SystemBus::new(test::test_rom(), |_| {});
         let mut cpu = Cpu::new(bus);
         cpu.load_and_run(vec![0xa9, 0x05, 0x85, 0x20, 0x00]);
 
@@ -1873,7 +1873,7 @@ mod test {
 
     #[test]
     fn test_0xaa_tax_move_a_to_x() {
-        let bus = SystemBus::new(test::test_rom(),|_| {});
+        let bus = SystemBus::new(test::test_rom(), |_| {});
         let mut cpu = Cpu::new(bus);
         cpu.load(vec![0xaa, 0x00]);
         cpu.reset();
@@ -1886,7 +1886,7 @@ mod test {
 
     #[test]
     fn test_0xe8_inx_increment_x() {
-        let bus = SystemBus::new(test::test_rom(),|_| {});
+        let bus = SystemBus::new(test::test_rom(), |_| {});
         let mut cpu = Cpu::new(bus);
         cpu.load(vec![0xe8, 0x00]);
         cpu.reset();
@@ -1899,7 +1899,7 @@ mod test {
 
     #[test]
     fn test_inx_overflow() {
-        let bus = SystemBus::new(test::test_rom(),|_| {});
+        let bus = SystemBus::new(test::test_rom(), |_| {});
         let mut cpu = Cpu::new(bus);
         cpu.load(vec![0xe8, 0xe8, 0x00]);
         cpu.reset();
@@ -1913,7 +1913,7 @@ mod test {
 
     #[test]
     fn test_5_ops_working_together() {
-        let bus = SystemBus::new(test::test_rom(),|_| {});
+        let bus = SystemBus::new(test::test_rom(), |_| {});
         let mut cpu = Cpu::new(bus);
         cpu.load_and_run(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
 
