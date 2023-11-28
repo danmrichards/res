@@ -7,8 +7,8 @@ release:
 debug:
     cargo build
 
-run:
-    cargo run -- -r
+run rom:
+    cargo run -- -r {{rom}}
 
 fmt:
     cargo fmt
