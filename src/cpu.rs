@@ -325,8 +325,9 @@ impl<'a> Cpu<'a> {
         }
     }
 
-    /// Clocks the CPU exactly once.
-    pub fn clock(&mut self) {
+    /// Clocks the CPU exactly once, returning true if the CPU should be shut
+    /// down.
+    pub fn clock(&mut self) -> bool {
         if self.bus.nmi_status() {
             self.interrupt(interrupt::NMI);
         }
@@ -343,7 +344,7 @@ impl<'a> Cpu<'a> {
 
         match opcode.code {
             // Official opcodes.
-            0x00 => return,
+            0x00 => return true,
 
             // ADC.
             0x69 | 0x65 | 0x75 | 0x6D | 0x7D | 0x79 | 0x61 | 0x71 => {
@@ -569,7 +570,7 @@ impl<'a> Cpu<'a> {
 
             // HLT.
             0x02 | 0x12 | 0x22 | 0x32 | 0x42 | 0x52 | 0x62 | 0x72 | 0x92 | 0xB2 | 0xD2 | 0xF2 => {
-                panic!("HLT opcode called");
+                return true;
             }
 
             // LAS.
@@ -641,6 +642,8 @@ impl<'a> Cpu<'a> {
         if current_pc == self.pc {
             self.pc += (opcode.len - 1) as u16;
         }
+
+        return false;
     }
 
     /// Returns the address of the operand for a given addressing mode and if the
@@ -1796,9 +1799,9 @@ mod test {
     use super::*;
     use crate::cartridge::test;
     use crate::cartridge::Rom;
-    // use crate::trace::trace;
-    // use std::fs::File;
-    // use std::io::{BufRead, BufReader};
+    use crate::trace::trace;
+    use std::fs::File;
+    use std::io::{BufRead, BufReader};
 
     fn test_cpu(rom: Rom) -> Cpu<'static> {
         let mut cpu = Cpu::new(SystemBus::new(rom, |_| {}));
@@ -1814,7 +1817,10 @@ mod test {
     // Runs the CPU for the given number of cycles.
     fn run_test_cpu(cpu: &mut Cpu, cycles: u8) {
         for _ in 0..cycles {
-            cpu.clock();
+            let halted = cpu.clock();
+            if halted {
+                break;
+            }
         }
     }
 
@@ -1928,32 +1934,34 @@ mod test {
         assert_eq!(cpu.x, 0xc1)
     }
 
-    // #[test]
-    // fn test_compare_nestest_rom() {
-    //     // Run test ROM to collect the trace output.
-    //     let bytes: Vec<u8> = std::fs::read("nestest.nes").unwrap();
-    //     let rom = Rom::new(&bytes).unwrap();
+    #[test]
+    fn test_compare_nestest_rom() {
+        // Run test ROM to collect the trace output.
+        let bytes: Vec<u8> = std::fs::read("nestest.nes").unwrap();
+        let rom = Rom::new(&bytes).unwrap();
 
-    //     let bus = SystemBus::new(rom, |_| {});
-    //     let mut cpu = Cpu::new(bus);
-    //     cpu.reset();
-    //     cpu.pc = 0xC000;
+        let bus = SystemBus::new(rom, |_| {});
+        let mut cpu = Cpu::new(bus);
+        cpu.reset();
+        cpu.pc = 0xC000;
 
-    //     // TODO: This needs an exit condition.
-    //     let mut result: Vec<String> = vec![];
-    //     loop {
-    //         result.push(trace(&mut cpu));
+        let mut result: Vec<String> = vec![];
+        loop {
+            result.push(trace(&mut cpu));
 
-    //         cpu.clock();
-    //     }
+            let halted = cpu.clock();
+            if halted {
+                break;
+            }
+        }
 
-    //     // Compare the trace output with the golden output, line-by-line.
-    //     let golden_file = File::open("nestest_no_cycle.log").expect("no such file");
-    //     let reader = BufReader::new(golden_file);
+        // Compare the trace output with the golden output, line-by-line.
+        let golden_file = File::open("nestest_no_cycle.log").expect("no such file");
+        let reader = BufReader::new(golden_file);
 
-    //     for (i, line) in reader.lines().enumerate() {
-    //         let line_str = line.expect("could not read line");
-    //         assert_eq!(result[i], line_str);
-    //     }
-    // }
+        for (i, line) in reader.lines().enumerate() {
+            let line_str = line.expect("could not read line");
+            assert_eq!(result[i], line_str);
+        }
+    }
 }

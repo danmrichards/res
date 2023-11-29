@@ -131,64 +131,79 @@ pub fn trace(cpu: &mut Cpu) -> String {
 
 #[cfg(test)]
 mod test {
-    // use super::*;
-    // use crate::bus::SystemBus;
-    // use crate::cartridge::test::test_rom;
+    use super::*;
+    use crate::bus::SystemBus;
+    use crate::cartridge::test::test_rom;
 
-    // #[test]
-    // fn test_format_trace() {
-    //     let mut bus = SystemBus::new(test_rom(), |_| {});
-    //     bus.mem_write_byte(100, 0xA2);
-    //     bus.mem_write_byte(101, 0x01);
-    //     bus.mem_write_byte(102, 0xCA);
-    //     bus.mem_write_byte(103, 0x88);
-    //     bus.mem_write_byte(104, 0x00);
+    #[test]
+    fn test_format_trace() {
+        let rom = test_rom(1, vec![], 1, vec![], None, None).unwrap();
 
-    //     let mut cpu = Cpu::new(bus);
-    //     cpu.pc = 0x64;
-    //     cpu.a = 1;
-    //     cpu.x = 2;
-    //     cpu.y = 3;
+        let mut bus = SystemBus::new(rom, |_| {});
+        bus.mem_write_byte(100, 0xA2);
+        bus.mem_write_byte(101, 0x01);
+        bus.mem_write_byte(102, 0xCA);
+        bus.mem_write_byte(103, 0x88);
+        bus.mem_write_byte(104, 0x00);
 
-    //     let mut result: Vec<String> = vec![];
-    //     cpu.run_with_callback(|cpu| {
-    //         result.push(trace(cpu));
-    //     });
+        let mut cpu = Cpu::new(bus);
+        cpu.pc = 0x64;
+        cpu.a = 1;
+        cpu.x = 2;
+        cpu.y = 3;
 
-    //     assert_eq!(
-    //         "0064  A2 01     LDX #$01                        A:01 X:02 Y:03 P:24 SP:FD",
-    //         result[0]
-    //     );
-    //     assert_eq!(
-    //         "0066  CA        DEX                             A:01 X:01 Y:03 P:24 SP:FD",
-    //         result[1]
-    //     );
-    //     assert_eq!(
-    //         "0067  88        DEY                             A:01 X:00 Y:03 P:26 SP:FD",
-    //         result[2]
-    //     );
-    // }
-    // #[test]
-    // fn test_format_mem_access() {
-    //     let mut bus = SystemBus::new(test_rom(), |_| {});
-    //     bus.mem_write_byte(100, 0x11);
-    //     bus.mem_write_byte(101, 0x33);
-    //     bus.mem_write_byte(0x33, 0x00);
-    //     bus.mem_write_byte(0x34, 0x04);
-    //     bus.mem_write_byte(0x400, 0xAA);
+        let mut result: Vec<String> = vec![];
+        loop {
+            result.push(trace(&mut cpu));
 
-    //     let mut cpu = Cpu::new(bus);
-    //     cpu.pc = 0x64;
-    //     cpu.y = 0;
+            let halted = cpu.clock();
+            if halted {
+                break;
+            }
+        }
 
-    //     let mut result: Vec<String> = vec![];
-    //     cpu.run_with_callback(|cpu| {
-    //         result.push(trace(cpu));
-    //     });
+        assert_eq!(
+            "0064  A2 01     LDX #$01                        A:01 X:02 Y:03 P:24 SP:FD",
+            result[0]
+        );
+        assert_eq!(
+            "0066  CA        DEX                             A:01 X:01 Y:03 P:24 SP:FD",
+            result[1]
+        );
+        assert_eq!(
+            "0067  88        DEY                             A:01 X:00 Y:03 P:26 SP:FD",
+            result[2]
+        );
+    }
 
-    //     assert_eq!(
-    //         "0064  11 33     ORA ($33),Y = 0400 @ 0400 = AA  A:00 X:00 Y:00 P:24 SP:FD",
-    //         result[0]
-    //     );
-    // }
+    #[test]
+    fn test_format_mem_access() {
+        let rom = test_rom(1, vec![], 1, vec![], None, None).unwrap();
+
+        let mut bus = SystemBus::new(rom, |_| {});
+        bus.mem_write_byte(100, 0x11);
+        bus.mem_write_byte(101, 0x33);
+        bus.mem_write_byte(0x33, 0x00);
+        bus.mem_write_byte(0x34, 0x04);
+        bus.mem_write_byte(0x400, 0xAA);
+
+        let mut cpu = Cpu::new(bus);
+        cpu.pc = 0x64;
+        cpu.y = 0;
+
+        let mut result: Vec<String> = vec![];
+        loop {
+            result.push(trace(&mut cpu));
+
+            let halted = cpu.clock();
+            if halted {
+                break;
+            }
+        }
+
+        assert_eq!(
+            "0064  11 33     ORA ($33),Y = 0400 @ 0400 = AA  A:00 X:00 Y:00 P:24 SP:FD",
+            result[0]
+        );
+    }
 }
