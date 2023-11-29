@@ -1811,96 +1811,122 @@ mod test {
         cpu
     }
 
+    // Runs the CPU for the given number of cycles.
+    fn run_test_cpu(cpu: &mut Cpu, cycles: u8) {
+        for _ in 0..cycles {
+            cpu.clock();
+        }
+    }
+
     #[test]
     fn test_0xa9_lda_immediate_load_data() {
         let rom = test::test_rom(1, vec![0xA9, 0x05], 1, vec![0x00, 0x00], None, None).unwrap();
 
         let mut cpu = test_cpu(rom);
-        cpu.clock();
+        run_test_cpu(&mut cpu, 1);
 
         assert_eq!(cpu.a, 0x05);
         assert_eq!(cpu.status & 0b00000010, 0b00);
         assert_eq!(cpu.status & 0b1, 0);
     }
 
-    // #[test]
-    // fn test_0xa9_lda_zero_flag() {
-    //     let bus = SystemBus::new(test::test_rom(), |_| {});
-    //     let mut cpu = Cpu::new(bus);
-    //     cpu.load_and_run(vec![0xa9, 0x00, 0x00]);
+    #[test]
+    fn test_0xa9_lda_zero_flag() {
+        let rom =
+            test::test_rom(1, vec![0xA9, 0x00, 0x00], 1, vec![0x00, 0x00], None, None).unwrap();
 
-    //     assert_eq!(cpu.status & 0b00000010, 0b10);
-    // }
+        let mut cpu = test_cpu(rom);
+        run_test_cpu(&mut cpu, 1);
 
-    // #[test]
-    // fn test_lda_from_memory() {
-    //     let bus = SystemBus::new(test::test_rom(), |_| {});
-    //     let mut cpu = Cpu::new(bus);
-    //     cpu.mem_write_byte(0x10, 0x55);
+        assert_eq!(cpu.status & 0b00000010, 0b10);
+    }
 
-    //     cpu.load_and_run(vec![0xa5, 0x10, 0x00]);
+    #[test]
+    fn test_lda_from_memory() {
+        let rom =
+            test::test_rom(1, vec![0xA5, 0x10, 0x00], 1, vec![0x00, 0x00], None, None).unwrap();
 
-    //     assert_eq!(cpu.a, 0x55);
-    // }
+        let mut cpu = test_cpu(rom);
+        cpu.mem_write_byte(0x10, 0x55);
 
-    // #[test]
-    // fn test_sta() {
-    //     let bus = SystemBus::new(test::test_rom(), |_| {});
-    //     let mut cpu = Cpu::new(bus);
-    //     cpu.load_and_run(vec![0xa9, 0x05, 0x85, 0x20, 0x00]);
+        run_test_cpu(&mut cpu, 1);
 
-    //     assert_eq!(cpu.a, 0x05);
-    //     assert_eq!(cpu.mem_read_byte(0x20), 0x05)
-    // }
+        assert_eq!(cpu.a, 0x55);
+    }
 
-    // #[test]
-    // fn test_0xaa_tax_move_a_to_x() {
-    //     let bus = SystemBus::new(test::test_rom(), |_| {});
-    //     let mut cpu = Cpu::new(bus);
-    //     cpu.load(vec![0xaa, 0x00]);
-    //     cpu.reset();
-    //     cpu.pc = 0x0600;
-    //     cpu.a = 10;
+    #[test]
+    fn test_sta() {
+        let rom = test::test_rom(
+            1,
+            vec![0xA9, 0x05, 0x85, 0x20, 0x00],
+            1,
+            vec![0x00, 0x00],
+            None,
+            None,
+        )
+        .unwrap();
 
-    //     cpu.run();
-    //     assert_eq!(cpu.x, 10)
-    // }
+        let mut cpu = test_cpu(rom);
+        run_test_cpu(&mut cpu, 2);
 
-    // #[test]
-    // fn test_0xe8_inx_increment_x() {
-    //     let bus = SystemBus::new(test::test_rom(), |_| {});
-    //     let mut cpu = Cpu::new(bus);
-    //     cpu.load(vec![0xe8, 0x00]);
-    //     cpu.reset();
-    //     cpu.pc = 0x0600;
-    //     cpu.x = 1;
+        assert_eq!(cpu.a, 0x05);
+        assert_eq!(cpu.mem_read_byte(0x20), 0x05)
+    }
 
-    //     cpu.run();
-    //     assert_eq!(cpu.x, 2)
-    // }
+    #[test]
+    fn test_0xaa_tax_move_a_to_x() {
+        let rom = test::test_rom(1, vec![0xAA, 0x00], 1, vec![0x00, 0x00], None, None).unwrap();
 
-    // #[test]
-    // fn test_inx_overflow() {
-    //     let bus = SystemBus::new(test::test_rom(), |_| {});
-    //     let mut cpu = Cpu::new(bus);
-    //     cpu.load(vec![0xe8, 0xe8, 0x00]);
-    //     cpu.reset();
+        let mut cpu = test_cpu(rom);
+        cpu.a = 10;
 
-    //     cpu.x = 0xff;
-    //     cpu.pc = 0x0600;
-    //     cpu.run();
+        run_test_cpu(&mut cpu, 1);
 
-    //     assert_eq!(cpu.x, 1)
-    // }
+        assert_eq!(cpu.x, 10)
+    }
 
-    // #[test]
-    // fn test_5_ops_working_together() {
-    //     let bus = SystemBus::new(test::test_rom(), |_| {});
-    //     let mut cpu = Cpu::new(bus);
-    //     cpu.load_and_run(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
+    #[test]
+    fn test_0xe8_inx_increment_x() {
+        let rom = test::test_rom(1, vec![0xe8, 0x00], 1, vec![0x00, 0x00], None, None).unwrap();
 
-    //     assert_eq!(cpu.x, 0xc1)
-    // }
+        let mut cpu = test_cpu(rom);
+        cpu.x = 1;
+
+        run_test_cpu(&mut cpu, 1);
+
+        assert_eq!(cpu.x, 2)
+    }
+
+    #[test]
+    fn test_inx_overflow() {
+        let rom =
+            test::test_rom(1, vec![0xE8, 0xE8, 0x00], 1, vec![0x00, 0x00], None, None).unwrap();
+
+        let mut cpu = test_cpu(rom);
+        cpu.x = 0xFF;
+
+        run_test_cpu(&mut cpu, 2);
+
+        assert_eq!(cpu.x, 1)
+    }
+
+    #[test]
+    fn test_5_ops_working_together() {
+        let rom = test::test_rom(
+            1,
+            vec![0xA9, 0xC0, 0xAA, 0xE8, 0x00],
+            1,
+            vec![0x00, 0x00],
+            None,
+            None,
+        )
+        .unwrap();
+
+        let mut cpu = test_cpu(rom);
+        run_test_cpu(&mut cpu, 4);
+
+        assert_eq!(cpu.x, 0xc1)
+    }
 
     // #[test]
     // fn test_compare_nestest_rom() {
@@ -1913,10 +1939,13 @@ mod test {
     //     cpu.reset();
     //     cpu.pc = 0xC000;
 
+    //     // TODO: This needs an exit condition.
     //     let mut result: Vec<String> = vec![];
-    //     cpu.run_with_callback(|cpu| {
-    //         result.push(trace(cpu));
-    //     });
+    //     loop {
+    //         result.push(trace(&mut cpu));
+
+    //         cpu.clock();
+    //     }
 
     //     // Compare the trace output with the golden output, line-by-line.
     //     let golden_file = File::open("nestest_no_cycle.log").expect("no such file");
