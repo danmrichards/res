@@ -132,7 +132,10 @@ fn main() {
         // Clock the CPU until a frame has been rendered.
         let frame_count = cpu.bus.ppu_frame_count();
         while cpu.bus.ppu_frame_count() == frame_count {
-            cpu.clock();
+            let halted = cpu.clock();
+            if halted {
+                std::process::exit(0);
+            }
         }
 
         // Forcing 60FPS by waiting for the next frame (if not enough time has

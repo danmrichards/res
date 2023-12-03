@@ -186,7 +186,9 @@ mod test {
 
     #[test]
     fn test_mem_read_write_to_ram() {
-        let mut bus = SystemBus::new(test::test_rom(), |_| {});
+        let rom = test::test_rom(1, vec![], 1, vec![], None, None).unwrap();
+
+        let mut bus = SystemBus::new(rom, |_| {});
         bus.mem_write_byte(0x01, 0x55);
         assert_eq!(bus.mem_read_byte(0x01), 0x55);
     }

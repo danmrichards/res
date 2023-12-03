@@ -137,7 +137,9 @@ mod test {
 
     #[test]
     fn test_format_trace() {
-        let mut bus = SystemBus::new(test_rom(), |_| {});
+        let rom = test_rom(1, vec![], 1, vec![], None, None).unwrap();
+
+        let mut bus = SystemBus::new(rom, |_| {});
         bus.mem_write_byte(100, 0xA2);
         bus.mem_write_byte(101, 0x01);
         bus.mem_write_byte(102, 0xCA);
@@ -151,9 +153,14 @@ mod test {
         cpu.y = 3;
 
         let mut result: Vec<String> = vec![];
-        cpu.run_with_callback(|cpu| {
-            result.push(trace(cpu));
-        });
+        loop {
+            result.push(trace(&mut cpu));
+
+            let halted = cpu.clock();
+            if halted {
+                break;
+            }
+        }
 
         assert_eq!(
             "0064  A2 01     LDX #$01                        A:01 X:02 Y:03 P:24 SP:FD",
@@ -171,7 +178,9 @@ mod test {
 
     #[test]
     fn test_format_mem_access() {
-        let mut bus = SystemBus::new(test_rom(), |_| {});
+        let rom = test_rom(1, vec![], 1, vec![], None, None).unwrap();
+
+        let mut bus = SystemBus::new(rom, |_| {});
         bus.mem_write_byte(100, 0x11);
         bus.mem_write_byte(101, 0x33);
         bus.mem_write_byte(0x33, 0x00);
@@ -183,9 +192,14 @@ mod test {
         cpu.y = 0;
 
         let mut result: Vec<String> = vec![];
-        cpu.run_with_callback(|cpu| {
-            result.push(trace(cpu));
-        });
+        loop {
+            result.push(trace(&mut cpu));
+
+            let halted = cpu.clock();
+            if halted {
+                break;
+            }
+        }
 
         assert_eq!(
             "0064  11 33     ORA ($33),Y = 0400 @ 0400 = AA  A:00 X:00 Y:00 P:24 SP:FD",
