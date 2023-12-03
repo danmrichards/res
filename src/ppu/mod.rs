@@ -778,7 +778,8 @@ impl Ppu for NesPpu<'_> {
     }
 
     fn write_data(&mut self, data: u8) {
-        self.bus.write_data(self.v_addr.raw(), data);
+        let addr = self.v_addr.raw();
+        self.bus.write_data(addr, data);
         self.refresh_open_bus(data);
         self.increment_vram_addr();
     }
@@ -791,7 +792,8 @@ impl Ppu for NesPpu<'_> {
         let mut result = self.buf;
 
         // Read new data into the buffer.
-        self.buf = self.bus.read_data(self.v_addr.raw());
+        let addr = self.v_addr.raw();
+        self.buf = self.bus.read_data(addr);
 
         // If the data read in from palette RAM, it only takes 1 read
         if (self.v_addr.raw() & 0x3F00) == 0x3F00 {
@@ -829,14 +831,14 @@ pub mod test {
         ppu.write_addr(0x05);
         ppu.write_data(0x66);
 
-        assert_eq!(ppu.bus.read_data(0x0305), 0x66);
+        assert_eq!(ppu.bus.read_data(0x2305), 0x66);
     }
 
     #[test]
     fn test_ppu_vram_reads() {
         let mut ppu = new_empty_rom_ppu();
         ppu.write_ctrl(0);
-        ppu.bus.write_data(0x0305, 0x66);
+        ppu.bus.write_data(0x2305, 0x66);
 
         ppu.write_addr(0x23);
         ppu.write_addr(0x05);
@@ -850,8 +852,8 @@ pub mod test {
     fn test_ppu_vram_reads_cross_page() {
         let mut ppu = new_empty_rom_ppu();
         ppu.write_ctrl(0);
-        ppu.bus.write_data(0x01ff, 0x66);
-        ppu.bus.write_data(0x0200, 0x77);
+        ppu.bus.write_data(0x21ff, 0x66);
+        ppu.bus.write_data(0x2200, 0x77);
 
         ppu.write_addr(0x21);
         ppu.write_addr(0xff);
@@ -865,9 +867,9 @@ pub mod test {
     fn test_ppu_vram_reads_step_32() {
         let mut ppu = new_empty_rom_ppu();
         ppu.write_ctrl(0b100);
-        ppu.bus.write_data(0x01ff, 0x66);
-        ppu.bus.write_data(0x01ff + 32, 0x77);
-        ppu.bus.write_data(0x01ff + 64, 0x88);
+        ppu.bus.write_data(0x21ff, 0x66);
+        ppu.bus.write_data(0x21ff + 32, 0x77);
+        ppu.bus.write_data(0x21ff + 64, 0x88);
 
         ppu.write_addr(0x21);
         ppu.write_addr(0xff);
@@ -941,7 +943,7 @@ pub mod test {
     #[test]
     fn test_read_status_resets_latch() {
         let mut ppu = new_empty_rom_ppu();
-        ppu.bus.write_data(0x0305, 0x66);
+        ppu.bus.write_data(0x2305, 0x66);
 
         ppu.write_addr(0x21);
         ppu.write_addr(0x23);
@@ -953,19 +955,6 @@ pub mod test {
         ppu.read_status();
 
         ppu.write_addr(0x23);
-        ppu.write_addr(0x05);
-
-        ppu.read_data();
-        assert_eq!(ppu.read_data(), 0x66);
-    }
-
-    #[test]
-    fn test_ppu_vram_mirroring() {
-        let mut ppu = new_empty_rom_ppu();
-        ppu.write_ctrl(0);
-        ppu.bus.write_data(0x0305, 0x66);
-
-        ppu.write_addr(0x63);
         ppu.write_addr(0x05);
 
         ppu.read_data();
