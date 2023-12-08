@@ -1,5 +1,6 @@
 extern crate core;
 
+mod apu;
 mod bus;
 mod cartridge;
 mod cpu;
