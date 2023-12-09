@@ -1,3 +1,1 @@
-pub struct Triangle {
-    bits: u8,
-}
+pub struct Triangle {}

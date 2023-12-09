@@ -1,3 +1,1 @@
-pub struct Noise {
-    bits: u8,
-}
+pub struct Noise {}

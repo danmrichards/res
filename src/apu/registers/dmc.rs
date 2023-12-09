@@ -1,3 +1,1 @@
-pub struct Dmc {
-    bits: u8,
-}
+pub struct Dmc {}
