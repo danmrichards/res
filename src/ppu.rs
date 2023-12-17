@@ -1,15 +1,17 @@
-pub mod registers;
-
+mod control;
 mod frame;
+mod mask;
 mod palette;
+mod scroll;
 mod sprite;
+mod status;
 mod tile;
 
 use crate::bus::Memory;
-use registers::control::Control;
-use registers::mask::Mask;
-use registers::scroll::Scroll;
-use registers::status::Status;
+use control::Control;
+use mask::Mask;
+use scroll::Scroll;
+use status::Status;
 
 use self::frame::Frame;
 use self::palette::Rgb;

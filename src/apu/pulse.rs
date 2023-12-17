@@ -13,8 +13,11 @@ pub enum Channel {
     Two,
 }
 
-/// Represents the APU pulse registers.
+/// Represents the NES pulse (square) channel which generate a pulse wave with
+/// variable duty.
 pub struct Pulse {
+    enabled: bool,
+
     // A duty cycle describes the fraction of one period in which a signal or
     // system is active.
     duty_cycle: u8,
@@ -48,6 +51,8 @@ impl Pulse {
     /// Creates a new Pulse struct.
     pub fn new() -> Self {
         Self {
+            enabled: false,
+
             duty_cycle: 0,
             duty_phase: 0,
             constant_volume: false,
@@ -74,6 +79,8 @@ impl Pulse {
 
     /// Resets the Pulse struct.
     pub fn reset(&mut self) {
+        self.enabled = false;
+
         self.duty_cycle = 0;
         self.duty_phase = 0;
         self.constant_volume = false;
@@ -95,6 +102,15 @@ impl Pulse {
         self.envelope_period = 0;
         self.envelope_timer = 0;
         self.envelope_volume = 0;
+    }
+
+    /// Toggles the channel on or off.
+    pub fn toggle(&mut self, enabled: bool) {
+        self.enabled = enabled;
+
+        if !self.enabled {
+            self.length_counter = 0;
+        }
     }
 
     /// Sets the width of the pulse.
@@ -164,7 +180,7 @@ impl Pulse {
         self.envelope_timer = self.envelope_period + 1;
     }
 
-    /// Clocks the timer / divider
+    /// Clocks the timer / divider.
     pub fn clock_timer(&mut self) {
         if self.timer_period > 0 {
             self.timer_period -= 1;
