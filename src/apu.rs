@@ -92,21 +92,6 @@ impl Apu {
         }
     }
 
-    /// Resets the APU.
-    pub fn reset(&mut self) {
-        self.cycles = 0;
-        self.frame_counter = 0;
-        self.sequencer = 0;
-        self.disable_interrupt = false;
-        self.pending_interrupt = None;
-
-        self.pulse1.reset();
-        self.pulse2.reset();
-        self.tri.reset();
-        self.noise.reset();
-        self.dmc.reset();
-    }
-
     /// Advances the state of the APU by one CPU cycle.
     pub fn clock(&mut self) {
         self.cycles = self.cycles.wrapping_add(1);

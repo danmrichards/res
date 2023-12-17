@@ -29,11 +29,6 @@ impl Filter for HighPass {
 
         input
     }
-
-    fn reset(&mut self) {
-        self.last_input = 0.0;
-        self.last_output = 0.0;
-    }
 }
 
 #[cfg(test)]
@@ -56,14 +51,5 @@ mod tests {
 
         let output2 = highpass.process(200.0);
         assert_eq!(output2, 14.026008);
-    }
-
-    #[test]
-    fn test_highpass_reset() {
-        let mut highpass = HighPass::new(44100.0, 1000.0);
-        highpass.process(1.0);
-        highpass.reset();
-        assert_eq!(highpass.last_input, 0.0);
-        assert_eq!(highpass.last_output, 0.0);
     }
 }

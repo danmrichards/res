@@ -10,11 +10,6 @@ impl Triangle {
         Self { length_counter: 0 }
     }
 
-    /// Resets the Triangle register.
-    pub fn reset(&mut self) {
-        self.length_counter = 0;
-    }
-
     /// Returns the length counter value
     pub fn length_counter(&self) -> u8 {
         self.length_counter

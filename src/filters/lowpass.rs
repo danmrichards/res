@@ -22,11 +22,6 @@ impl Filter for LowPass {
         self.last_output = self.alpha * input + (1.0 - self.alpha) * self.last_output;
         self.last_output
     }
-
-    // Resets the lowpass filter.
-    fn reset(&mut self) {
-        self.last_output = 0.0;
-    }
 }
 
 #[cfg(test)]
@@ -54,17 +49,5 @@ mod tests {
 
         assert_eq!(output, 0.062_354);
         assert_eq!(filter.last_output, output);
-    }
-
-    #[test]
-    fn test_lowpass_reset() {
-        let sample_rate = 44100.0;
-        let cutoff_frequency = 1000.0;
-        let mut filter = LowPass::new(sample_rate, cutoff_frequency);
-
-        filter.process(0.5);
-        filter.reset();
-
-        assert_eq!(filter.last_output, 0.0);
     }
 }

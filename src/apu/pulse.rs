@@ -77,33 +77,6 @@ impl Pulse {
         }
     }
 
-    /// Resets the Pulse struct.
-    pub fn reset(&mut self) {
-        self.enabled = false;
-
-        self.duty_cycle = 0;
-        self.duty_phase = 0;
-        self.constant_volume = false;
-        self.volume = 0;
-
-        self.length_halt = false;
-        self.length_counter = 0;
-
-        self.sweep_enabled = false;
-        self.sweep_period = 0;
-        self.sweep_negate = false;
-        self.sweep_shift = 0;
-        self.sweep_timer = 0;
-
-        self.timer = 0;
-        self.timer_period = 0;
-
-        self.envelope_loop = false;
-        self.envelope_period = 0;
-        self.envelope_timer = 0;
-        self.envelope_volume = 0;
-    }
-
     /// Toggles the channel on or off.
     pub fn toggle(&mut self, enabled: bool) {
         self.enabled = enabled;
