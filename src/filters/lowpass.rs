@@ -18,14 +18,6 @@ impl LowPass {
 }
 
 impl Filter for LowPass {
-    // Processes a sample through the lowpass filter.
-    //
-    // The output of the filter is a weighted average of the current input and
-    // the previous output. The weights are determined by the alpha factor,
-    // which depends on the cutoff frequency of the filter. The lower the cutoff
-    // frequency, the more the output depends on the previous outputs and the
-    // less it depends on the current input, which is how the filter achieves
-    // its low-pass effect
     fn process(&mut self, input: f32) -> f32 {
         self.last_output = self.alpha * input + (1.0 - self.alpha) * self.last_output;
         self.last_output
@@ -47,7 +39,7 @@ mod tests {
         let cutoff_frequency = 1000.0;
         let filter = LowPass::new(sample_rate, cutoff_frequency);
 
-        assert_eq!(filter.alpha, 0.124707997);
+        assert_eq!(filter.alpha, 0.124_708);
         assert_eq!(filter.last_output, 0.0);
     }
 
@@ -60,7 +52,7 @@ mod tests {
 
         let output = filter.process(input);
 
-        assert_eq!(output, 0.0623539984);
+        assert_eq!(output, 0.062_354);
         assert_eq!(filter.last_output, output);
     }
 

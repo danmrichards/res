@@ -120,11 +120,10 @@ impl Apu {
             // self.noise.clock();
         }
 
-        // The frame counter is clocked at 240 Hz. The NES CPU runs at ~1.79MHz
-        // which at half speed for the APU is (1.7Mhz / 2) / 240Hz = ~14915
+        // TODO: Don't understand any of this frame counter stuff!
         self.frame_counter = self.frame_counter.wrapping_add(2);
         if self.frame_counter >= 14915 {
-            self.frame_counter = 0;
+            self.frame_counter -= 14915;
 
             self.sequencer = self.sequencer.wrapping_add(1);
             match self.mode {
@@ -221,7 +220,7 @@ impl Apu {
     pub fn output(&mut self) -> f32 {
         // Approximate the audio output level within the range of 0.0 to 1.0.
         let pulse_output = 95.88
-            / ((8128.0 / (self.pulse1.output() as f32 + self.pulse2.output() as f32)) + 100.0);
+            / (100.0 + (8128.0 / (self.pulse1.output() as f32 + self.pulse2.output() as f32)));
 
         // TODO:
         //                                   159.79
@@ -229,13 +228,13 @@ impl Apu {
         //                                     1
         //            ----------------------------------------------------- + 100
         //             (triangle / 8227) + (noise / 12241) + (dmc / 22638)
-        let tnd_out: f32 = 0.0;
+
+        // TODO: Dirty hack. Remove once other channels implemented.
+        let sample = pulse_output + 0.57;
 
         self.filters
             .iter_mut()
-            .fold(pulse_output + tnd_out, |output, filter| {
-                filter.process(output)
-            })
+            .fold(sample, |sample, filter| filter.process(sample))
     }
 
     /// Returns the status of the APU:

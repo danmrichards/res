@@ -182,12 +182,12 @@ impl Pulse {
 
     /// Clocks the timer / divider.
     pub fn clock_timer(&mut self) {
-        if self.timer_period > 0 {
-            self.timer_period -= 1;
+        if self.timer > 0 {
+            self.timer -= 1;
             return;
         }
 
-        self.timer_period = self.timer_period + 1;
+        self.timer = self.timer_period + 1;
         self.duty_phase = (self.duty_phase + 1) % 8;
     }
 
@@ -238,7 +238,7 @@ impl Pulse {
         let dp = 1 << self.duty_phase;
         let duty = (dt & dp) != 0;
 
-        if !self.length_halt
+        if !self.enabled
             || self.timer_period > 0x7FF
             || self.length_counter == 0
             || self.timer_period < 8

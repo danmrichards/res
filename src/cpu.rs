@@ -643,7 +643,7 @@ impl<'a> Cpu<'a> {
             self.pc += (opcode.len - 1) as u16;
         }
 
-        return false;
+        false
     }
 
     /// Returns the address of the operand for a given addressing mode and if the
@@ -1804,7 +1804,7 @@ mod test {
     use std::io::{BufRead, BufReader};
 
     fn test_cpu(rom: Rom) -> Cpu<'static> {
-        let mut cpu = Cpu::new(SystemBus::new(rom, |_| {}));
+        let mut cpu = Cpu::new(SystemBus::new(rom, 44100.0, |_| {}));
 
         // Force the program counter to the start of PRG ROM.
         // TODO: This should be handled by the ROM mapper instead. Loading the
@@ -1940,7 +1940,7 @@ mod test {
         let bytes: Vec<u8> = std::fs::read("nestest.nes").unwrap();
         let rom = Rom::new(&bytes).unwrap();
 
-        let bus = SystemBus::new(rom, |_| {});
+        let bus = SystemBus::new(rom, 44100.0, |_| {});
         let mut cpu = Cpu::new(bus);
         cpu.reset();
         cpu.pc = 0xC000;

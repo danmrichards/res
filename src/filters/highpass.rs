@@ -21,13 +21,13 @@ impl HighPass {
 
 impl Filter for HighPass {
     // Processes a sample through the highpass filter.
-    //
-    // The output of the filter is the previous output plus alpha times the
-    // difference between the input and the previous input and output.
     fn process(&mut self, input: f32) -> f32 {
-        self.last_output = self.alpha * (self.last_output + input - self.last_input);
-        self.last_input = input;
-        self.last_output
+        // TODO: Fix this, too aggressive and filters everything.
+        // self.last_output = self.alpha * (self.last_output + input - self.last_input);
+        // self.last_input = input;
+        // self.last_output
+
+        input
     }
 
     fn reset(&mut self) {

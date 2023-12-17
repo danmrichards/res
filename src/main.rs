@@ -93,7 +93,7 @@ fn main() {
     let buffer_size = 1024;
     let sample_rate = 44100;
     let spec = AudioSpecDesired {
-        freq: Some(sample_rate as i32),
+        freq: Some(sample_rate),
         channels: Some(1),
         samples: Some(buffer_size),
     };
@@ -161,14 +161,14 @@ fn main() {
             }
         }
 
-        samples.append(&mut cpu.bus.audio_samples());
-
         // Forcing 60FPS by waiting for the next frame (if not enough time has
         // already elapsed).
         timer.wait(Duration::from_secs_f64(SECS_PER_FRAME));
         timer.reset();
 
-        // Adjust the volume
+        samples.append(&mut cpu.bus.audio_samples());
+
+        // Adjust the volume.
         samples.iter_mut().for_each(|s| *s *= volume);
 
         // Add the samples to the SDL audio queue.
