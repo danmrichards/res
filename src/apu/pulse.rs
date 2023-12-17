@@ -252,6 +252,7 @@ mod tests {
     #[test]
     fn test_output() {
         let mut pulse = Pulse::new();
+        pulse.enabled = true;
         pulse.duty_cycle = 3;
         pulse.duty_phase = 1;
         pulse.length_halt = true;
