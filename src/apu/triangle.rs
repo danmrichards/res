@@ -14,4 +14,9 @@ impl Triangle {
     pub fn length_counter(&self) -> u8 {
         self.length_counter
     }
+
+    /// Returns the output volume of the channel
+    pub fn output(&self) -> u8 {
+        0
+    }
 }

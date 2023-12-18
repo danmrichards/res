@@ -177,32 +177,32 @@ impl Pulse {
     /// decrement the volume. This can be used to create a constant volume or
     /// a increasing/decreasing volume.
     pub fn clock_envelope(&mut self) {
-        match self.envelope_timer > 0 {
-            true => self.envelope_timer -= 1,
-            false => {
-                self.envelope_timer = self.envelope_period + 1;
+        if self.envelope_timer > 0 {
+            self.envelope_timer -= 1;
+            return;
+        }
 
-                if self.envelope_volume > 0 && !self.envelope_loop {
-                    self.envelope_volume -= 1;
-                } else if self.envelope_volume < 15 && self.envelope_loop {
-                    self.envelope_volume += 1;
-                }
-            }
+        self.envelope_timer = self.envelope_period + 1;
+
+        if self.envelope_volume > 0 && !self.envelope_loop {
+            self.envelope_volume -= 1;
+        } else if self.envelope_volume < 15 && self.envelope_loop {
+            self.envelope_volume += 1;
         }
     }
 
     /// Clock the sweep unit which periodically adjusts the timer period.
     pub fn clock_sweep(&mut self, chan: Channel) {
-        match self.sweep_timer > 0 {
-            true => self.sweep_timer -= 1,
-            false => {
-                if self.sweep_enabled && self.timer_period > 7 && self.sweep_shift > 0 {
-                    self.sweep(chan);
-                }
-
-                self.sweep_timer = self.sweep_period + 1;
-            }
+        if self.sweep_timer > 0 {
+            self.sweep_timer -= 1;
+            return;
         }
+
+        if self.sweep_enabled && self.timer_period > 7 && self.sweep_shift > 0 {
+            self.sweep(chan);
+        }
+
+        self.sweep_timer = self.sweep_period + 1;
     }
 
     /// Returns the output volume of the channel

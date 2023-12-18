@@ -27,4 +27,9 @@ impl Dmc {
     pub fn poll_interrupt(&mut self) -> bool {
         self.pending_interrupt.take().is_some()
     }
+
+    /// Returns the output volume of the channel
+    pub fn output(&self) -> u8 {
+        0
+    }
 }

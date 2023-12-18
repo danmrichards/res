@@ -22,13 +22,17 @@ const PULSE2_SWEEP: u16 = 0x4005;
 const PULSE2_TIMER_LOW: u16 = 0x4006;
 const PULSE2_TIMER_HIGH: u16 = 0x4007;
 
+/// Noise channel registers.
+const NOISE_VOLUME: u16 = 0x400C;
+const NOISE_TIMER_LOW: u16 = 0x400E;
+const NOISE_TIMER_HIGH: u16 = 0x400F;
+
 /// Sound status / enable register
 const STATUS_REGISTER: u16 = 0x4015;
 
 /// Frame counter register
 const FRAME_COUNTER: u16 = 0x4017;
 
-use crate::filters::{Filter, HighPass, LowPass};
 use dmc::Dmc;
 use noise::Noise;
 use pulse::Pulse;
@@ -56,8 +60,6 @@ pub struct Apu {
     tri: Triangle,
     noise: Noise,
     dmc: Dmc,
-
-    filters: Vec<Box<dyn Filter>>,
 }
 
 impl Apu {
@@ -77,18 +79,6 @@ impl Apu {
             tri: Triangle::new(),
             noise: Noise::new(),
             dmc: Dmc::new(),
-
-            // The NES hardware follows the DACs with a surprisingly involved
-            // circuit that adds several low-pass and high-pass filters:
-            //
-            // A first-order high-pass filter at 90 Hz
-            // Another first-order high-pass filter at 440 Hz
-            // A first-order low-pass filter at 14 kHz
-            filters: vec![
-                Box::new(HighPass::new(sample_rate, 90.0)),
-                Box::new(HighPass::new(sample_rate, 440.0)),
-                Box::new(LowPass::new(sample_rate, 14000.0)),
-            ],
         }
     }
 
@@ -102,7 +92,7 @@ impl Apu {
         if self.cycles % 2 == 0 {
             self.pulse1.clock_timer();
             self.pulse2.clock_timer();
-            // self.noise.clock();
+            self.noise.clock_timer();
         }
 
         // TODO: Don't understand any of this frame counter stuff!
@@ -124,24 +114,23 @@ impl Apu {
                 self.pending_interrupt = Some(true);
             }
 
-            let half_tick = (self.frame_counter & 0x5) == 1;
-            let full_tick = self.sequencer < 4;
-
-            // Sweep tick and length tick
-            if half_tick {
+            // Sweep and length clocks.
+            if (self.frame_counter & 0x5) == 1 {
                 self.pulse1.clock_length();
                 self.pulse2.clock_length();
                 self.pulse1.clock_sweep(pulse::Channel::One);
                 self.pulse2.clock_sweep(pulse::Channel::Two);
+                self.noise.clock_length();
 
-                // TODO: Noise and triangle.
+                // TODO: Triangle.
             }
 
-            if full_tick {
+            if self.sequencer < 4 {
                 self.pulse1.clock_envelope();
                 self.pulse2.clock_envelope();
+                self.noise.clock_envelope();
 
-                // TODO: Noise and triangle.
+                // TODO: Noise.
             }
         }
     }
@@ -167,13 +156,22 @@ impl Apu {
             PULSE2_TIMER_LOW => self.pulse2.write_timer_low(data),
             PULSE2_TIMER_HIGH => self.pulse2.write_timer_high(data),
 
+            NOISE_VOLUME => self.noise.write_volume(data),
+            NOISE_TIMER_LOW => self.noise.write_timer_low(data),
+            NOISE_TIMER_HIGH => self.noise.write_timer_high(data),
+
             // ---D NT21
-            // Enable DMC (D), noise (N), triangle (T), and pulse channels (2/1)
+            // D: Enable DMC
+            // N: Noise
+            // T: Triangle
+            // 2: Pulse channel 2
+            // 1: Pulse channel 1
             STATUS_REGISTER => {
                 self.pulse1.toggle(data & 0x1 != 0);
                 self.pulse2.toggle(data & 0x2 != 0);
+                self.noise.toggle(data & 0x8 != 0);
 
-                // TODO: Triangle, noise, and DMC.
+                // TODO: Triangle and DMC.
             }
 
             FRAME_COUNTER => {
@@ -203,23 +201,17 @@ impl Apu {
     /// The NES APU mixer takes the channel outputs and converts them to an
     /// analog audio signal.
     pub fn output(&mut self) -> f32 {
-        // Approximate the audio output level within the range of 0.0 to 1.0.
-        let pulse_output = 95.88
-            / (100.0 + (8128.0 / (self.pulse1.output() as f32 + self.pulse2.output() as f32)));
+        // Use a linear approximation of the NES APU mixer here, hence the use
+        // of the magic floats. Not super accurate but sounds good enough.
+        //
+        // See: https://www.nesdev.org/wiki/APU_Mixer#Emulation
+        let pulse_output = 0.00752 * (self.pulse1.output() as f32 + self.pulse2.output() as f32);
 
-        // TODO:
-        //                                   159.79
-        // tnd_out = ------------------------------------------------------------
-        //                                     1
-        //            ----------------------------------------------------- + 100
-        //             (triangle / 8227) + (noise / 12241) + (dmc / 22638)
+        let tnd_output = 0.00851 * self.tri.output() as f32
+            + 0.00494 * self.noise.output() as f32
+            + 0.00335 * self.dmc.output() as f32;
 
-        // TODO: Dirty hack. Remove once other channels implemented.
-        let sample = pulse_output + 0.57;
-
-        self.filters
-            .iter_mut()
-            .fold(sample, |sample, filter| filter.process(sample))
+        pulse_output + tnd_output
     }
 
     /// Returns the status of the APU:

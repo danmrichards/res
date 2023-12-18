@@ -4,7 +4,6 @@ mod apu;
 mod bus;
 mod cartridge;
 mod cpu;
-mod filters;
 mod instructions;
 mod joypad;
 mod ppu;
@@ -88,8 +87,6 @@ fn main() {
         .unwrap();
 
     // Initialise sound.
-    //
-    // TODO: Allow the user to select the sample rate.
     let buffer_size = 1024;
     let sample_rate = 44100;
     let spec = AudioSpecDesired {
