@@ -151,3 +151,102 @@ impl Noise {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::apu::{noise::TIMER_PERIODS, LENGTH_TABLE};
+
+    use super::Noise;
+
+    #[test]
+    fn test_new() {
+        let noise = Noise::new();
+        assert_eq!(noise.enabled, false);
+        assert_eq!(noise.mode, false);
+        assert_eq!(noise.length_counter, 0);
+        assert_eq!(noise.timer, 0);
+        assert_eq!(noise.timer_period, 0);
+        assert_eq!(noise.length_halt, false);
+        assert_eq!(noise.constant_volume, false);
+        assert_eq!(noise.volume, 0);
+        assert_eq!(noise.envelope_timer, 0);
+        assert_eq!(noise.envelope_volume, 0);
+        assert_eq!(noise.shift, 0);
+    }
+
+    #[test]
+    fn test_toggle() {
+        let mut noise = Noise::new();
+        noise.toggle(true);
+        assert_eq!(noise.enabled, true);
+        noise.toggle(false);
+        assert_eq!(noise.enabled, false);
+        assert_eq!(noise.length_counter, 0);
+    }
+
+    #[test]
+    fn test_write_volume() {
+        let mut noise = Noise::new();
+        noise.write_volume(0x3F);
+        assert_eq!(noise.length_halt, true);
+        assert_eq!(noise.constant_volume, true);
+        assert_eq!(noise.volume, 0xF);
+    }
+
+    #[test]
+    fn test_write_timer_low() {
+        let mut noise = Noise::new();
+        noise.write_timer_low(0x8F);
+        assert_eq!(noise.mode, true);
+        assert_eq!(noise.timer_period, TIMER_PERIODS[0xF]);
+    }
+
+    #[test]
+    fn test_write_timer_high() {
+        let mut noise = Noise::new();
+        noise.write_timer_high(0xF8);
+        assert_eq!(noise.length_counter, LENGTH_TABLE[0x1F]);
+        assert_eq!(noise.envelope_volume, 15);
+        assert_eq!(noise.envelope_timer, noise.volume + 1);
+    }
+
+    #[test]
+    fn test_clock_timer() {
+        let mut noise = Noise::new();
+        noise.timer = 5;
+        noise.clock_timer();
+        assert_eq!(noise.timer, 4);
+    }
+
+    #[test]
+    fn test_clock_length() {
+        let mut noise = Noise::new();
+        noise.length_counter = 5;
+        noise.clock_length();
+        assert_eq!(noise.length_counter, 4);
+    }
+
+    #[test]
+    fn test_clock_envelope() {
+        let mut noise = Noise::new();
+        noise.envelope_timer = 5;
+        noise.clock_envelope();
+        assert_eq!(noise.envelope_timer, 4);
+    }
+
+    #[test]
+    fn test_length_counter() {
+        let noise = Noise::new();
+        assert_eq!(noise.length_counter(), 0);
+    }
+
+    #[test]
+    fn test_output() {
+        let mut noise = Noise::new();
+        assert_eq!(noise.output(), 0);
+        noise.enabled = true;
+        noise.length_counter = 5;
+        noise.shift = 0;
+        assert_eq!(noise.output(), noise.envelope_volume);
+    }
+}

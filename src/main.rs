@@ -4,6 +4,7 @@ mod apu;
 mod bus;
 mod cartridge;
 mod cpu;
+mod filters;
 mod instructions;
 mod joypad;
 mod ppu;
