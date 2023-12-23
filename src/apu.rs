@@ -32,6 +32,12 @@ const NOISE_VOLUME: u16 = 0x400C;
 const NOISE_TIMER_LOW: u16 = 0x400E;
 const NOISE_TIMER_HIGH: u16 = 0x400F;
 
+/// DMC frequency registers.
+const DMC_SAMPLE_FREQUENCY: u16 = 0x4010;
+const DMC_SAMPLE_RAW: u16 = 0x4011;
+const DMC_SAMPLE_START: u16 = 0x4012;
+const DMC_SAMPLE_LENGTH: u16 = 0x4013;
+
 /// Sound status / enable register
 const STATUS_REGISTER: u16 = 0x4015;
 
@@ -119,8 +125,8 @@ impl Apu {
     pub fn clock(&mut self) {
         self.cycles = self.cycles.wrapping_add(1);
 
-        // TODO: Tick DMC channel.
         self.triangle.clock_timer();
+        self.dmc.clock();
 
         // Pulse and noise channels are clocked at half the rate of the CPU.
         if self.cycles % 2 == 0 {
@@ -196,6 +202,11 @@ impl Apu {
             NOISE_TIMER_LOW => self.noise.write_timer_low(data),
             NOISE_TIMER_HIGH => self.noise.write_timer_high(data),
 
+            DMC_SAMPLE_FREQUENCY => self.dmc.write_sample_frequency(data),
+            DMC_SAMPLE_RAW => self.dmc.write_raw_sample(data),
+            DMC_SAMPLE_START => self.dmc.write_sample_start(data),
+            DMC_SAMPLE_LENGTH => self.dmc.write_sample_length(data),
+
             // ---D NT21
             // D: Enable DMC
             // N: Noise
@@ -207,8 +218,7 @@ impl Apu {
                 self.pulse2.toggle(data & 0x2 != 0);
                 self.triangle.toggle(data & 0x4 != 0);
                 self.noise.toggle(data & 0x8 != 0);
-
-                // TODO: DMC.
+                self.dmc.toggle(data & 0x10 != 0);
             }
 
             FRAME_COUNTER => {
@@ -252,6 +262,26 @@ impl Apu {
         self.filters
             .iter_mut()
             .fold(sample, |sample, filter| filter.process(sample))
+    }
+
+    /// Polls the IRQ flag
+    pub fn poll_interrupt(&mut self) -> bool {
+        self.pending_interrupt.take().is_some() | self.dmc.poll_interrupt()
+    }
+
+    /// Returns true if the DMC needs a new sample.
+    pub fn need_dmc_sample(&mut self) -> bool {
+        self.dmc.need_sample()
+    }
+
+    /// Sets the sample for the DMC.
+    pub fn set_dmc_sample(&mut self, sample: u8) {
+        self.dmc.set_sample(sample);
+    }
+
+    /// Gets the address of the next DMC audio sample.
+    pub fn dmc_sample_address(&self) -> u16 {
+        self.dmc.address()
     }
 
     /// Returns the status of the APU:

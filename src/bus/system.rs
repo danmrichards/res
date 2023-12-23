@@ -71,6 +71,8 @@ impl<'a> SystemBus<'a> {
         }
     }
 
+    // TODO: Implement DMC sample update method.
+
     /// Returns a byte from PRG ROM at the given address.
     fn read_prg(&self, mut addr: u16) -> u8 {
         addr -= PRG;
@@ -201,6 +203,8 @@ impl Memory for SystemBus<'_> {
                 }
 
                 self.ppu.write_oam_dma(&buffer);
+
+                // TODO: Check if the DMC needs to be updated.
             }
             0x4016 => {
                 self.joypad1.write(data);
