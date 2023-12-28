@@ -1,4 +1,4 @@
-# NESOxide
+# RES - Rustendo Entertainment System
 A [Nintendo Entertainment System][nes] emulator implemented in [Rust][rust]
 
 ## Installation
@@ -8,7 +8,7 @@ TBC
 
 ### Running the emulator
 ```
-Usage: nesoxide [OPTIONS] --rom <ROM>
+Usage: res [OPTIONS] --rom <ROM>
 
 Options:
   -x, --window-w <WINDOW_W>        Width of emulator window [default: 256]
@@ -64,7 +64,7 @@ A development/debug build can be created via:
 $ just debug
 ```
 
-The emulator can then be run from the `target/[debug|release]/nesoxide` relative to the
+The emulator can then be run from the `target/[debug|release]/res` relative to the
 root of the repository
 
 [nes]: https://en.wikipedia.org/wiki/Nintendo_Entertainment_System
