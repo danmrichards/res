@@ -70,7 +70,11 @@ fn main() {
     let video_subsystem = sdl_context.video().unwrap();
     let audio_subsystem = sdl_context.audio().unwrap();
     let window = video_subsystem
-        .window("NESOxide", window_w, args.scaled_window_h())
+        .window(
+            "RES - Rustendo Entertainment System",
+            window_w,
+            args.scaled_window_h(),
+        )
         .position_centered()
         .build()
         .unwrap();
