@@ -71,7 +71,17 @@ impl<'a> SystemBus<'a> {
         }
     }
 
-    // TODO: Implement DMC sample update method.
+    /// Updates the APU DMC chanel with a new sample if it needs one.
+    fn update_dmc_sample(&mut self) {
+        if self.apu.need_dmc_sample() {
+            let addr = self.apu.dmc_sample_address();
+            let sample = self.mem_read_byte(addr);
+
+            self.apu.set_dmc_sample(sample);
+
+            self.tick(4);
+        }
+    }
 
     /// Returns a byte from PRG ROM at the given address.
     fn read_prg(&self, mut addr: u16) -> u8 {
@@ -93,8 +103,7 @@ impl<'a> SystemBus<'a> {
 
             // The APU runs at the same speed as the CPU.
             self.apu.clock();
-
-            // TODO: Check if DMC needs a sample.
+            self.update_dmc_sample();
 
             // Ensure the APU stays in sync.
             self.apu_interval += APU_SAMPLE_DELAY;
@@ -204,7 +213,10 @@ impl Memory for SystemBus<'_> {
 
                 self.ppu.write_oam_dma(&buffer);
 
-                // TODO: Check if the DMC needs to be updated.
+                // DMC can need a new sample during DMA.
+                //
+                // See: https://www.nesdev.org/wiki/APU_DMC
+                self.update_dmc_sample();
             }
             0x4016 => {
                 self.joypad1.write(data);
