@@ -8978,7 +8978,7 @@ C659  05 11     ORA $11 = 00                    A:00 X:FF Y:15 P:27 SP:FD
 C65B  F0 0E     BEQ $C66B                       A:00 X:FF Y:15 P:27 SP:FD
 C66B  20 89 C6  JSR $C689                       A:00 X:FF Y:15 P:27 SP:FD
 C689  A9 02     LDA #$02                        A:00 X:FF Y:15 P:27 SP:FB
-C68B  8D 15 40  STA $4015 = 00                  A:02 X:FF Y:15 P:25 SP:FB
+C68B  8D 15 40  STA $4015 = 80                  A:02 X:FF Y:15 P:25 SP:FB
 C68E  A9 3F     LDA #$3F                        A:02 X:FF Y:15 P:25 SP:FB
 C690  8D 04 40  STA $4004 = 00                  A:3F X:FF Y:15 P:25 SP:FB
 C693  A9 9A     LDA #$9A                        A:3F X:FF Y:15 P:25 SP:FB
