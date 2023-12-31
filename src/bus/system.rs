@@ -26,7 +26,7 @@ const RAM_MIRRORS_END: u16 = 0x1FFF;
 const PPU_REGISTERS: u16 = 0x2000;
 const PPU_REGISTERS_MIRRORS_END: u16 = 0x3FFF;
 
-const PRG: u16 = 0x8000;
+const PRG: u16 = 0x4020;
 const PRG_END: u16 = 0xFFFF;
 
 const APU_REGISTERS: u16 = 0x4000;

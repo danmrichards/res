@@ -17,16 +17,26 @@ impl NROM {
             ram: vec![0; 0x2000],
         }
     }
+
+    /// Returns the PRG ROM mask used for PRG ROM bank switching.
+    fn prg_mask(&self) -> u16 {
+        if self.rom.header.prg_size() > 1 {
+            0x7FFF
+        } else {
+            0x3FFF
+        }
+    }
 }
 
 impl Mapper for NROM {
     /// Returns a byte from PRG ROM at the given address.
-    fn read_prg(&self, mut addr: u16) -> u8 {
-        if self.rom.prg.len() == 0x4000 && addr >= 0x4000 {
-            // Mirror if needed.
-            addr %= 0x4000;
+    fn read_prg(&self, addr: u16) -> u8 {
+        match addr {
+            // Special case for "Family Basic".
+            0x6000..=0x7FFF => self.ram[(addr & 0x1FFF) as usize],
+
+            _ => self.rom.prg[(addr & self.prg_mask()) as usize],
         }
-        self.rom.prg[addr as usize]
     }
 
     /// Writes a byte to PRG ROM at the given address.

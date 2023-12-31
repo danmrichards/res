@@ -6,7 +6,7 @@ const CHR_PAGE_SIZE: usize = 8192;
 
 /// Represents the iNES header.
 ///
-/// 0-3     Constant $4E $45 $53 $1A (ASCII "NES" followed by MS-DOSend-of-file)
+/// 0-3     Constant $4E $45 $53 $1A (ASCII "NES" followed by MS-DOS end-of-file)
 /// 4       Size of PRG ROM in 16 KB units
 /// 5       Size of CHR ROM in 8 KB units (value 0 means the board uses CHR RAM)
 /// 6       Flags 6 – Mapper, mirroring, battery, trainer
@@ -92,12 +92,12 @@ impl Header {
 
     /// Returns the size of the PRG ROM in bytes.
     pub fn prg_size(&self) -> usize {
-        self.prg_size as usize * PRG_PAGE_SIZE
+        self.prg_size as usize
     }
 
     /// Returns the size of the CHR ROM in bytes.
     pub fn chr_size(&self) -> usize {
-        self.chr_size as usize * CHR_PAGE_SIZE
+        self.chr_size as usize
     }
 
     /// Returns true if the ROM contains a trainer.
@@ -150,10 +150,10 @@ impl Rom {
         }
 
         // PRG is sized in 16kb units.
-        let prg_size = header.prg_size();
+        let prg_size = header.prg_size() * PRG_PAGE_SIZE;
 
         // CHR is sized in 8kb units.
-        let chr_size = header.chr_size();
+        let chr_size = header.chr_size() * CHR_PAGE_SIZE;
 
         let prg_start = 16 + if header.skip_trainer() { 512 } else { 0 };
         let chr_start = prg_start + prg_size;
