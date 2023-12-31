@@ -266,6 +266,7 @@ impl Apu {
 
     /// Polls the IRQ flag
     pub fn poll_interrupt(&mut self) -> bool {
+        // TODO: Hook this up to the system bus.
         self.pending_interrupt.take().is_some() | self.dmc.poll_interrupt()
     }
 

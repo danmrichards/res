@@ -1797,8 +1797,8 @@ fn page_cross(addr1: u16, addr2: u16) -> bool {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::cartridge::test;
-    use crate::cartridge::Rom;
+    use crate::rom::test;
+    use crate::rom::Rom;
     use crate::trace::trace;
     use std::fs::File;
     use std::io::{BufRead, BufReader};

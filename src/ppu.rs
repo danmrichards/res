@@ -816,7 +816,7 @@ impl Ppu for NesPpu<'_> {
 #[cfg(test)]
 pub mod test {
     use crate::bus::PPUBus;
-    use crate::cartridge::Mirroring;
+    use crate::rom::Mirroring;
 
     use super::*;
 
