@@ -4,15 +4,15 @@ use crate::{cartridge::Mirroring, rom::Rom};
 /// NROM refers to the Nintendo cartridge boards NES-NROM-128, NES-NROM-256,
 /// their HVC counterparts, and clone boards. The iNES format assigns mapper 0
 /// to NROM.
-pub struct NROM {
+pub struct Nrom {
     rom: Rom,
     ram: Vec<u8>,
 }
 
-impl NROM {
+impl Nrom {
     /// Returns an instantiated NROM.
     pub fn new(rom: Rom) -> Self {
-        NROM {
+        Nrom {
             rom,
             ram: vec![0; 0x2000],
         }
@@ -28,7 +28,7 @@ impl NROM {
     }
 }
 
-impl Mapper for NROM {
+impl Mapper for Nrom {
     /// Returns a byte from PRG ROM at the given address.
     fn read_prg(&self, addr: u16) -> u8 {
         match addr {

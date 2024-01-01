@@ -223,15 +223,16 @@ impl Memory for SystemBus<'_> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
+    use crate::cartridge::tests::test_cartridge;
+
     use super::*;
-    use crate::rom::test;
 
     #[test]
     fn test_mem_read_write_to_ram() {
-        let rom = test::test_rom(1, vec![], 1, vec![], None, None).unwrap();
+        let cart = test_cartridge(vec![], None).unwrap();
 
-        let mut bus = SystemBus::new(rom, 44100.0, |_| {});
+        let mut bus = SystemBus::new(Rc::new(RefCell::new(cart)), 44100.0, |_| {});
         bus.mem_write_byte(0x01, 0x55);
         assert_eq!(bus.mem_read_byte(0x01), 0x55);
     }

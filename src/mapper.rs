@@ -1,6 +1,6 @@
 mod nrom;
 
-pub use nrom::NROM;
+pub use nrom::Nrom;
 
 use crate::cartridge::Mirroring;
 

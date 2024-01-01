@@ -167,11 +167,11 @@ impl Rom {
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use super::*;
 
-    const HEADER_TRAINER_DISABLED: u8 = 0b00110001;
-    const HEADER_TRAINER_ENABLED: u8 = 0b00110101;
+    const HEADER_TRAINER_DISABLED: u8 = 0b00110000;
+    const HEADER_TRAINER_ENABLED: u8 = 0b00110100;
     const HEADER_NES_2_0: u8 = 0b00001000;
 
     /// Creates a new test ROM with given values.
@@ -182,6 +182,7 @@ pub mod test {
         chr: Vec<u8>,
         trainer: Option<Vec<u8>>,
         flags_7: Option<u8>,
+        mirroring: Option<Mirroring>,
     ) -> Result<Rom, String> {
         // Zero-pad PRG ROM up to the 16KB page size.
         let mut prg_rom = prg.clone();
@@ -195,6 +196,15 @@ pub mod test {
         let mut flags_6 = HEADER_TRAINER_DISABLED;
         if trainer.is_some() {
             flags_6 = HEADER_TRAINER_ENABLED;
+        }
+
+        // Set the mirroring bit in flags_6 if one is provided.
+        if let Some(m) = mirroring {
+            match m {
+                Mirroring::Horizontal => {}
+                Mirroring::Vertical => flags_6 ^= 0x1,
+                Mirroring::FourScreen => flags_6 ^= 0x8,
+            }
         }
 
         let mut header_bytes = INES_TAG.to_vec();
@@ -241,6 +251,7 @@ pub mod test {
             vec![0x00, 0x00],
             None,
             None,
+            None,
         )
         .unwrap();
 
@@ -249,7 +260,7 @@ pub mod test {
         assert_eq!(rom.chr[0..2], vec![0x00, 0x00]);
         assert_eq!(rom.chr.len(), chr_size * CHR_PAGE_SIZE);
         assert_eq!(rom.header.mapper(), 3);
-        assert_eq!(rom.header.mirroring(), Mirroring::Vertical);
+        assert_eq!(rom.header.mirroring(), Mirroring::Horizontal);
     }
 
     #[test]
@@ -263,6 +274,7 @@ pub mod test {
             vec![0x00, 0x00],
             Some(vec![0; 512]),
             None,
+            None,
         )
         .unwrap();
 
@@ -271,7 +283,7 @@ pub mod test {
         assert_eq!(rom.chr[0..2], vec![0x00, 0x00]);
         assert_eq!(rom.chr.len(), chr_size * CHR_PAGE_SIZE);
         assert_eq!(rom.header.mapper(), 3);
-        assert_eq!(rom.header.mirroring(), Mirroring::Vertical);
+        assert_eq!(rom.header.mirroring(), Mirroring::Horizontal);
     }
 
     #[test]
@@ -283,6 +295,7 @@ pub mod test {
             vec![0x00, 0x00],
             None,
             Some(HEADER_NES_2_0),
+            None,
         );
 
         match rom {

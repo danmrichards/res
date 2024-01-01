@@ -50,7 +50,8 @@ impl PPUBus {
         let vram_index = mirrored_vram - 0x2000;
         let name_table = vram_index / 0x400;
 
-        match (self.cart.borrow().mirroring(), name_table) {
+        let mirroring = self.cart.borrow().mirroring();
+        match (mirroring, name_table) {
             (Mirroring::Vertical, 2) | (Mirroring::Vertical, 3) => vram_index - 0x800,
             (Mirroring::Horizontal, 2) => vram_index - 0x400,
             (Mirroring::Horizontal, 1) => vram_index - 0x400,

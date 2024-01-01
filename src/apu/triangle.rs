@@ -154,13 +154,13 @@ mod tests {
     #[test]
     fn test_new() {
         let triangle = Triangle::new();
-        assert_eq!(triangle.enabled, false);
+        assert!(!triangle.enabled);
         assert_eq!(triangle.phase, 0);
         assert_eq!(triangle.timer_period, 0);
         assert_eq!(triangle.timer, 0);
-        assert_eq!(triangle.counter_halt, false);
+        assert!(!triangle.counter_halt);
         assert_eq!(triangle.length_counter, 0);
-        assert_eq!(triangle.counter_reload, false);
+        assert!(!triangle.counter_reload);
         assert_eq!(triangle.counter_period, 0);
         assert_eq!(triangle.linear_counter, 0);
     }
@@ -169,9 +169,9 @@ mod tests {
     fn test_toggle() {
         let mut triangle = Triangle::new();
         triangle.toggle(true);
-        assert_eq!(triangle.enabled, true);
+        assert!(triangle.enabled);
         triangle.toggle(false);
-        assert_eq!(triangle.enabled, false);
+        assert!(!triangle.enabled);
         assert_eq!(triangle.length_counter, 0);
     }
 
@@ -180,7 +180,7 @@ mod tests {
         let mut triangle = Triangle::new();
         triangle.write_linear_counter(0x8F);
         assert_eq!(triangle.counter_period, 0x0F);
-        assert_eq!(triangle.counter_halt, true);
+        assert!(triangle.counter_halt);
         assert_eq!(triangle.linear_counter, 0x0F);
     }
 

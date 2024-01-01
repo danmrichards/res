@@ -1795,16 +1795,18 @@ fn page_cross(addr1: u16, addr2: u16) -> bool {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
-    use crate::rom::test;
-    use crate::rom::Rom;
+    use crate::cartridge::tests::test_cartridge;
+    use crate::cartridge::Cartridge;
     use crate::trace::trace;
+    use std::cell::RefCell;
     use std::fs::File;
     use std::io::{BufRead, BufReader};
+    use std::rc::Rc;
 
-    fn test_cpu(rom: Rom) -> Cpu<'static> {
-        let mut cpu = Cpu::new(SystemBus::new(rom, 44100.0, |_| {}));
+    fn test_cpu(cart: Cartridge) -> Cpu<'static> {
+        let mut cpu = Cpu::new(SystemBus::new(Rc::new(RefCell::new(cart)), 44100.0, |_| {}));
 
         // Force the program counter to the start of PRG ROM.
         // TODO: This should be handled by the ROM mapper instead. Loading the
@@ -1826,9 +1828,9 @@ mod test {
 
     #[test]
     fn test_0xa9_lda_immediate_load_data() {
-        let rom = test::test_rom(1, vec![0xA9, 0x05], 1, vec![0x00, 0x00], None, None).unwrap();
+        let cart = test_cartridge(vec![0xA9, 0x05], None).unwrap();
 
-        let mut cpu = test_cpu(rom);
+        let mut cpu = test_cpu(cart);
         run_test_cpu(&mut cpu, 1);
 
         assert_eq!(cpu.a, 0x05);
@@ -1838,10 +1840,9 @@ mod test {
 
     #[test]
     fn test_0xa9_lda_zero_flag() {
-        let rom =
-            test::test_rom(1, vec![0xA9, 0x00, 0x00], 1, vec![0x00, 0x00], None, None).unwrap();
+        let cart = test_cartridge(vec![0xA9, 0x00, 0x00], None).unwrap();
 
-        let mut cpu = test_cpu(rom);
+        let mut cpu = test_cpu(cart);
         run_test_cpu(&mut cpu, 1);
 
         assert_eq!(cpu.status & 0b00000010, 0b10);
@@ -1849,10 +1850,9 @@ mod test {
 
     #[test]
     fn test_lda_from_memory() {
-        let rom =
-            test::test_rom(1, vec![0xA5, 0x10, 0x00], 1, vec![0x00, 0x00], None, None).unwrap();
+        let cart = test_cartridge(vec![0xA5, 0x10, 0x00], None).unwrap();
 
-        let mut cpu = test_cpu(rom);
+        let mut cpu = test_cpu(cart);
         cpu.mem_write_byte(0x10, 0x55);
 
         run_test_cpu(&mut cpu, 1);
@@ -1862,17 +1862,9 @@ mod test {
 
     #[test]
     fn test_sta() {
-        let rom = test::test_rom(
-            1,
-            vec![0xA9, 0x05, 0x85, 0x20, 0x00],
-            1,
-            vec![0x00, 0x00],
-            None,
-            None,
-        )
-        .unwrap();
+        let cart = test_cartridge(vec![0xA9, 0x05, 0x85, 0x20, 0x00], None).unwrap();
 
-        let mut cpu = test_cpu(rom);
+        let mut cpu = test_cpu(cart);
         run_test_cpu(&mut cpu, 2);
 
         assert_eq!(cpu.a, 0x05);
@@ -1881,9 +1873,9 @@ mod test {
 
     #[test]
     fn test_0xaa_tax_move_a_to_x() {
-        let rom = test::test_rom(1, vec![0xAA, 0x00], 1, vec![0x00, 0x00], None, None).unwrap();
+        let cart = test_cartridge(vec![0xAA, 0x00], None).unwrap();
 
-        let mut cpu = test_cpu(rom);
+        let mut cpu = test_cpu(cart);
         cpu.a = 10;
 
         run_test_cpu(&mut cpu, 1);
@@ -1893,9 +1885,9 @@ mod test {
 
     #[test]
     fn test_0xe8_inx_increment_x() {
-        let rom = test::test_rom(1, vec![0xe8, 0x00], 1, vec![0x00, 0x00], None, None).unwrap();
+        let cart = test_cartridge(vec![0xE8, 0x00], None).unwrap();
 
-        let mut cpu = test_cpu(rom);
+        let mut cpu = test_cpu(cart);
         cpu.x = 1;
 
         run_test_cpu(&mut cpu, 1);
@@ -1905,10 +1897,9 @@ mod test {
 
     #[test]
     fn test_inx_overflow() {
-        let rom =
-            test::test_rom(1, vec![0xE8, 0xE8, 0x00], 1, vec![0x00, 0x00], None, None).unwrap();
+        let cart = test_cartridge(vec![0xE8, 0xE8, 0x00], None).unwrap();
 
-        let mut cpu = test_cpu(rom);
+        let mut cpu = test_cpu(cart);
         cpu.x = 0xFF;
 
         run_test_cpu(&mut cpu, 2);
@@ -1918,17 +1909,9 @@ mod test {
 
     #[test]
     fn test_5_ops_working_together() {
-        let rom = test::test_rom(
-            1,
-            vec![0xA9, 0xC0, 0xAA, 0xE8, 0x00],
-            1,
-            vec![0x00, 0x00],
-            None,
-            None,
-        )
-        .unwrap();
+        let cart = test_cartridge(vec![0xA9, 0xC0, 0xAA, 0xE8, 0x00], None).unwrap();
 
-        let mut cpu = test_cpu(rom);
+        let mut cpu = test_cpu(cart);
         run_test_cpu(&mut cpu, 4);
 
         assert_eq!(cpu.x, 0xc1)
@@ -1938,9 +1921,9 @@ mod test {
     fn test_compare_nestest_rom() {
         // Run test ROM to collect the trace output.
         let bytes: Vec<u8> = std::fs::read("nestest.nes").unwrap();
-        let rom = Rom::new(&bytes).unwrap();
+        let cart = Cartridge::new(&bytes).unwrap();
 
-        let bus = SystemBus::new(rom, 44100.0, |_| {});
+        let bus = SystemBus::new(Rc::new(RefCell::new(cart)), 44100.0, |_| {});
         let mut cpu = Cpu::new(bus);
         cpu.reset();
         cpu.pc = 0xC000;
