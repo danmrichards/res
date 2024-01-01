@@ -130,16 +130,18 @@ pub fn trace(cpu: &mut Cpu) -> String {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
+    use std::{cell::RefCell, rc::Rc};
+
     use super::*;
     use crate::bus::SystemBus;
-    use crate::cartridge::test::test_rom;
+    use crate::cartridge::tests::test_cartridge;
 
     #[test]
     fn test_format_trace() {
-        let rom = test_rom(1, vec![], 1, vec![], None, None).unwrap();
+        let cart = test_cartridge(vec![], None).unwrap();
 
-        let mut bus = SystemBus::new(rom, 44100.0, |_| {});
+        let mut bus = SystemBus::new(Rc::new(RefCell::new(cart)), 44100.0, |_| {});
         bus.mem_write_byte(100, 0xA2);
         bus.mem_write_byte(101, 0x01);
         bus.mem_write_byte(102, 0xCA);
@@ -178,9 +180,9 @@ mod test {
 
     #[test]
     fn test_format_mem_access() {
-        let rom = test_rom(1, vec![], 1, vec![], None, None).unwrap();
+        let cart = test_cartridge(vec![], None).unwrap();
 
-        let mut bus = SystemBus::new(rom, 44100.0, |_| {});
+        let mut bus = SystemBus::new(Rc::new(RefCell::new(cart)), 44100.0, |_| {});
         bus.mem_write_byte(100, 0x11);
         bus.mem_write_byte(101, 0x33);
         bus.mem_write_byte(0x33, 0x00);

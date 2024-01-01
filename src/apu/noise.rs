@@ -161,13 +161,13 @@ mod tests {
     #[test]
     fn test_new() {
         let noise = Noise::new();
-        assert_eq!(noise.enabled, false);
-        assert_eq!(noise.mode, false);
+        assert!(!noise.enabled);
+        assert!(!noise.mode);
         assert_eq!(noise.length_counter, 0);
         assert_eq!(noise.timer, 0);
         assert_eq!(noise.timer_period, 0);
-        assert_eq!(noise.length_halt, false);
-        assert_eq!(noise.constant_volume, false);
+        assert!(!noise.length_halt);
+        assert!(!noise.constant_volume);
         assert_eq!(noise.volume, 0);
         assert_eq!(noise.envelope_timer, 0);
         assert_eq!(noise.envelope_volume, 0);
@@ -178,9 +178,9 @@ mod tests {
     fn test_toggle() {
         let mut noise = Noise::new();
         noise.toggle(true);
-        assert_eq!(noise.enabled, true);
+        assert!(noise.enabled);
         noise.toggle(false);
-        assert_eq!(noise.enabled, false);
+        assert!(!noise.enabled);
         assert_eq!(noise.length_counter, 0);
     }
 
@@ -188,8 +188,8 @@ mod tests {
     fn test_write_volume() {
         let mut noise = Noise::new();
         noise.write_volume(0x3F);
-        assert_eq!(noise.length_halt, true);
-        assert_eq!(noise.constant_volume, true);
+        assert!(noise.length_halt);
+        assert!(noise.constant_volume);
         assert_eq!(noise.volume, 0xF);
     }
 
@@ -197,7 +197,7 @@ mod tests {
     fn test_write_timer_low() {
         let mut noise = Noise::new();
         noise.write_timer_low(0x8F);
-        assert_eq!(noise.mode, true);
+        assert!(noise.mode);
         assert_eq!(noise.timer_period, TIMER_PERIODS[0xF]);
     }
 

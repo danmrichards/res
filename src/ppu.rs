@@ -814,21 +814,27 @@ impl Ppu for NesPpu<'_> {
 }
 
 #[cfg(test)]
-pub mod test {
-    use crate::bus::PPUBus;
-    use crate::cartridge::Mirroring;
+pub mod tests {
+    use std::{cell::RefCell, rc::Rc};
+
+    use crate::{
+        bus::PPUBus,
+        cartridge::{tests::test_cartridge, Mirroring},
+    };
 
     use super::*;
 
     /// Returns an instatiated PPU with an empty ROM loaded.
-    pub fn new_empty_rom_ppu() -> NesPpu<'static> {
-        let bus = PPUBus::new(vec![0; 2048], Mirroring::Horizontal);
+    pub fn new_empty_rom_ppu(mirroring: Option<Mirroring>) -> NesPpu<'static> {
+        let cart = test_cartridge(vec![], mirroring).unwrap();
+
+        let bus = PPUBus::new(Rc::new(RefCell::new(cart)));
         NesPpu::new(Box::new(bus), |_| {})
     }
 
     #[test]
     fn test_ppu_vram_writes() {
-        let mut ppu = new_empty_rom_ppu();
+        let mut ppu = new_empty_rom_ppu(None);
         ppu.write_addr(0x23);
         ppu.write_addr(0x05);
         ppu.write_data(0x66);
@@ -838,7 +844,7 @@ pub mod test {
 
     #[test]
     fn test_ppu_vram_reads() {
-        let mut ppu = new_empty_rom_ppu();
+        let mut ppu = new_empty_rom_ppu(None);
         ppu.write_ctrl(0);
         ppu.bus.write_data(0x2305, 0x66);
 
@@ -852,7 +858,7 @@ pub mod test {
 
     #[test]
     fn test_ppu_vram_reads_cross_page() {
-        let mut ppu = new_empty_rom_ppu();
+        let mut ppu = new_empty_rom_ppu(None);
         ppu.write_ctrl(0);
         ppu.bus.write_data(0x21ff, 0x66);
         ppu.bus.write_data(0x2200, 0x77);
@@ -867,7 +873,7 @@ pub mod test {
 
     #[test]
     fn test_ppu_vram_reads_step_32() {
-        let mut ppu = new_empty_rom_ppu();
+        let mut ppu = new_empty_rom_ppu(None);
         ppu.write_ctrl(0b100);
         ppu.bus.write_data(0x21ff, 0x66);
         ppu.bus.write_data(0x21ff + 32, 0x77);
@@ -887,7 +893,7 @@ pub mod test {
     //   [0x2800 B ] [0x2C00 b ]
     #[test]
     fn test_vram_horizontal_mirror() {
-        let mut ppu = new_empty_rom_ppu();
+        let mut ppu = new_empty_rom_ppu(None);
         ppu.write_addr(0x24);
         ppu.write_addr(0x05);
 
@@ -916,8 +922,7 @@ pub mod test {
     //   [0x2800 a ] [0x2C00 b ]
     #[test]
     fn test_vram_vertical_mirror() {
-        let bus = PPUBus::new(vec![0; 2048], Mirroring::Vertical);
-        let mut ppu = NesPpu::new(Box::new(bus), |_| {});
+        let mut ppu = new_empty_rom_ppu(Some(Mirroring::Vertical));
 
         ppu.write_addr(0x20);
         ppu.write_addr(0x05);
@@ -944,7 +949,7 @@ pub mod test {
 
     #[test]
     fn test_read_status_resets_latch() {
-        let mut ppu = new_empty_rom_ppu();
+        let mut ppu = new_empty_rom_ppu(None);
         ppu.bus.write_data(0x2305, 0x66);
 
         ppu.write_addr(0x21);
@@ -965,7 +970,7 @@ pub mod test {
 
     #[test]
     fn test_read_status_resets_vblank() {
-        let mut ppu = new_empty_rom_ppu();
+        let mut ppu = new_empty_rom_ppu(None);
         ppu.status.set_vblank_status(true);
 
         let status = ppu.read_status();
@@ -976,7 +981,7 @@ pub mod test {
 
     #[test]
     fn test_oam_read_write() {
-        let mut ppu = new_empty_rom_ppu();
+        let mut ppu = new_empty_rom_ppu(None);
         ppu.write_oam_addr(0x10);
         ppu.write_oam_data(0x66);
         ppu.write_oam_data(0x77);
@@ -990,7 +995,7 @@ pub mod test {
 
     #[test]
     fn test_oam_dma() {
-        let mut ppu = new_empty_rom_ppu();
+        let mut ppu = new_empty_rom_ppu(None);
 
         let mut data = [0x66; 256];
         data[0] = 0x77;

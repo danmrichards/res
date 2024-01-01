@@ -1,5 +1,8 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use crate::apu::Apu;
-use crate::cartridge::Rom;
+use crate::cartridge::Cartridge;
 use crate::cpu::Memory;
 use crate::joypad::Joypad;
 use crate::ppu::NesPpu;
@@ -23,7 +26,7 @@ const RAM_MIRRORS_END: u16 = 0x1FFF;
 const PPU_REGISTERS: u16 = 0x2000;
 const PPU_REGISTERS_MIRRORS_END: u16 = 0x3FFF;
 
-const PRG: u16 = 0x8000;
+const PRG: u16 = 0x4020;
 const PRG_END: u16 = 0xFFFF;
 
 const APU_REGISTERS: u16 = 0x4000;
@@ -39,7 +42,7 @@ const APU_SAMPLE_DELAY: f32 = 1.0 / 1789773.0;
 /// memory mapping and PPU/CPU clock cycles.
 pub struct SystemBus<'a> {
     ram: [u8; 2048],
-    prg_rom: Vec<u8>,
+    cart: Rc<RefCell<Cartridge>>,
     ppu: NesPpu<'a>,
     pub joypad1: Joypad,
 
@@ -51,16 +54,16 @@ pub struct SystemBus<'a> {
 
 impl<'a> SystemBus<'a> {
     /// Returns an instantiated Bus.
-    pub fn new<F>(rom: Rom, audio_sample_rate: f32, render_callback: F) -> Self
+    pub fn new<F>(cart: Rc<RefCell<Cartridge>>, audio_sample_rate: f32, render_callback: F) -> Self
     where
         F: FnMut(&[u8]) + 'a,
     {
-        let ppu_bus = PPUBus::new(rom.chr, rom.screen_mirroring);
+        let ppu_bus = PPUBus::new(Rc::clone(&cart));
         let ppu = NesPpu::new(Box::new(ppu_bus), Box::new(render_callback));
 
         SystemBus {
             ram: [0; 2048],
-            prg_rom: rom.prg,
+            cart,
             ppu,
             joypad1: Joypad::new(),
 
@@ -81,16 +84,6 @@ impl<'a> SystemBus<'a> {
 
             self.tick(4);
         }
-    }
-
-    /// Returns a byte from PRG ROM at the given address.
-    fn read_prg(&self, mut addr: u16) -> u8 {
-        addr -= PRG;
-        if self.prg_rom.len() == 0x4000 && addr >= 0x4000 {
-            // Mirror if needed
-            addr %= 0x4000;
-        }
-        self.prg_rom[addr as usize]
     }
 
     /// For every CPU tick, run the PPU and APU appropriately.
@@ -157,7 +150,7 @@ impl Memory for SystemBus<'_> {
                 let mirror_down_addr = addr & 0b00100000_00000111;
                 self.mem_read_byte(mirror_down_addr)
             }
-            PRG..=PRG_END => self.read_prg(addr),
+            PRG..=PRG_END => self.cart.borrow().read_prg(addr),
 
             _ => 0,
         }
@@ -222,25 +215,24 @@ impl Memory for SystemBus<'_> {
                 self.joypad1.write(data);
             }
 
-            0x8000..=0xFFFF => panic!("Attempt to write to Cartridge ROM space: {:x}", addr),
+            PRG..=PRG_END => self.cart.borrow_mut().write_prg(addr, data),
 
-            _ => {
-                println!("TODO: Fix mem write-access at {}", addr);
-            }
+            _ => unreachable!("unreachable write at: {}", addr),
         }
     }
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
+    use crate::cartridge::tests::test_cartridge;
+
     use super::*;
-    use crate::cartridge::test;
 
     #[test]
     fn test_mem_read_write_to_ram() {
-        let rom = test::test_rom(1, vec![], 1, vec![], None, None).unwrap();
+        let cart = test_cartridge(vec![], None).unwrap();
 
-        let mut bus = SystemBus::new(rom, 44100.0, |_| {});
+        let mut bus = SystemBus::new(Rc::new(RefCell::new(cart)), 44100.0, |_| {});
         bus.mem_write_byte(0x01, 0x55);
         assert_eq!(bus.mem_read_byte(0x01), 0x55);
     }

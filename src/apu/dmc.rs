@@ -197,10 +197,10 @@ mod tests {
     #[test]
     fn test_new() {
         let dmc = Dmc::new();
-        assert_eq!(dmc.enabled, false);
-        assert_eq!(dmc.disable_interrupt, false);
+        assert!(!dmc.enabled);
+        assert!(!dmc.disable_interrupt);
         assert_eq!(dmc.pending_interrupt, None);
-        assert_eq!(dmc.loop_sample, false);
+        assert!(!dmc.loop_sample);
         assert_eq!(dmc.rate, 0);
         assert_eq!(dmc.rate_counter, 0);
         assert_eq!(dmc.pending_read, None);
@@ -217,9 +217,9 @@ mod tests {
     fn test_toggle() {
         let mut dmc = Dmc::new();
         dmc.toggle(true);
-        assert_eq!(dmc.enabled, true);
+        assert!(dmc.enabled);
         dmc.toggle(false);
-        assert_eq!(dmc.enabled, false);
+        assert!(!dmc.enabled);
     }
 
     #[test]
@@ -227,8 +227,8 @@ mod tests {
         let mut dmc = Dmc::new();
         dmc.write_sample_frequency(0xCF);
         assert_eq!(dmc.rate, RATE_TABLE[0xF]);
-        assert_eq!(dmc.loop_sample, true);
-        assert_eq!(dmc.disable_interrupt, true);
+        assert!(dmc.loop_sample);
+        assert!(dmc.disable_interrupt);
     }
 
     #[test]
@@ -243,14 +243,14 @@ mod tests {
         let mut dmc = Dmc::new();
         dmc.write_sample_start(0x10);
         assert_eq!(dmc.addr, 0x10);
-        assert_eq!(dmc.last_addr, 0xC000 + (0x10 as u16 * 64));
+        assert_eq!(dmc.last_addr, 0xC000 + (0x10 * 64));
     }
 
     #[test]
     fn test_write_sample_length() {
         let mut dmc = Dmc::new();
         dmc.write_sample_length(0x10);
-        assert_eq!(dmc.pcm_length, 0x10 as u16);
+        assert_eq!(dmc.pcm_length, 0x10);
         assert_eq!(dmc.length_counter, dmc.pcm_length * 16 + 1);
     }
 

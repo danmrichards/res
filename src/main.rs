@@ -7,19 +7,23 @@ mod cpu;
 mod filters;
 mod instructions;
 mod joypad;
+mod mapper;
 mod ppu;
+mod rom;
 mod timer;
 mod trace;
 
 use bus::SystemBus;
-use cartridge::Rom;
+use cartridge::Cartridge;
 use clap::Parser;
 use cpu::Cpu;
 use sdl2::audio::AudioSpecDesired;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::time::Duration;
 use timer::Timer;
 
@@ -108,7 +112,7 @@ fn main() {
 
     // Load ROM.
     let bytes: Vec<u8> = std::fs::read(args.rom).unwrap();
-    let rom = Rom::new(&bytes).unwrap();
+    let cart = Cartridge::new(&bytes).unwrap();
 
     // Initialise joypad.
     let mut key_map = HashMap::new();
@@ -121,12 +125,16 @@ fn main() {
     key_map.insert(Keycode::A, joypad::JOYPAD_BUTTON_A);
     key_map.insert(Keycode::S, joypad::JOYPAD_BUTTON_B);
 
-    let bus = SystemBus::new(rom, sample_rate as f32, move |frame| {
-        texture.update(None, frame, window_w as usize).unwrap();
+    let bus = SystemBus::new(
+        Rc::new(RefCell::new(cart)),
+        sample_rate as f32,
+        move |frame| {
+            texture.update(None, frame, window_w as usize).unwrap();
 
-        canvas.copy(&texture, None, None).unwrap();
-        canvas.present();
-    });
+            canvas.copy(&texture, None, None).unwrap();
+            canvas.present();
+        },
+    );
 
     let mut cpu = Cpu::new(bus);
     cpu.reset();

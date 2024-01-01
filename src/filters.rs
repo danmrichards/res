@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, f32::consts::PI};
+use std::f32::consts::PI;
 
 /// Represents a filter that processs an audio sample.
 pub trait Filter {
