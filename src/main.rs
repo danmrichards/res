@@ -48,10 +48,9 @@ struct Args {
     /// Pixel scaling factor.
     #[arg(short, long, default_value_t = 3.0)]
     pixel_scale: f32,
-
-    /// path/to/rom
-    #[arg(short, long)]
-    rom: String,
+    // /// path/to/rom
+    // #[arg(short, long)]
+    // rom: String,
 }
 
 impl Args {
@@ -111,7 +110,9 @@ fn main() {
     let volume = 1.0;
 
     // Load ROM.
-    let bytes: Vec<u8> = std::fs::read(args.rom).unwrap();
+    let bytes: Vec<u8> =
+        std::fs::read("/mnt/c/Users/dan/Documents/roms/Nintendo (NES)/Castlevania (USA).nes")
+            .unwrap();
     let cart = Cartridge::new(&bytes).unwrap();
 
     // Initialise joypad.
