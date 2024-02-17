@@ -158,11 +158,14 @@ impl Rom {
         let prg_start = 16 + if header.skip_trainer() { 512 } else { 0 };
         let chr_start = prg_start + prg_size;
 
-        Ok(Rom {
-            header,
-            prg: raw[prg_start..(prg_start + prg_size)].to_vec(),
-            chr: raw[chr_start..(chr_start + chr_size)].to_vec(),
-        })
+        let prg = raw[prg_start..(prg_start + prg_size)].to_vec();
+        let chr = if header.chr_size() > 0 {
+            raw[chr_start..(chr_start + chr_size)].to_vec()
+        } else {
+            vec![0; CHR_PAGE_SIZE]
+        };
+
+        Ok(Rom { header, prg, chr })
     }
 }
 
