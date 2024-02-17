@@ -1,6 +1,8 @@
 mod nrom;
+mod uxrom;
 
 pub use nrom::Nrom;
+pub use uxrom::Uxrom;
 
 use crate::cartridge::Mirroring;
 

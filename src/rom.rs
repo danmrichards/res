@@ -1,8 +1,8 @@
 use crate::cartridge::Mirroring;
 
 const INES_TAG: [u8; 4] = [0x4E, 0x45, 0x53, 0x1A];
-const PRG_PAGE_SIZE: usize = 16384;
-const CHR_PAGE_SIZE: usize = 8192;
+pub const PRG_PAGE_SIZE: usize = 16384;
+pub const CHR_PAGE_SIZE: usize = 8192;
 
 /// Represents the iNES header.
 ///
@@ -158,11 +158,14 @@ impl Rom {
         let prg_start = 16 + if header.skip_trainer() { 512 } else { 0 };
         let chr_start = prg_start + prg_size;
 
-        Ok(Rom {
-            header,
-            prg: raw[prg_start..(prg_start + prg_size)].to_vec(),
-            chr: raw[chr_start..(chr_start + chr_size)].to_vec(),
-        })
+        let prg = raw[prg_start..(prg_start + prg_size)].to_vec();
+        let chr = if header.chr_size() > 0 {
+            raw[chr_start..(chr_start + chr_size)].to_vec()
+        } else {
+            vec![0; CHR_PAGE_SIZE]
+        };
+
+        Ok(Rom { header, prg, chr })
     }
 }
 

@@ -1,5 +1,5 @@
 use crate::{
-    mapper::{Mapper, Nrom},
+    mapper::{Mapper, Nrom, Uxrom},
     rom::Rom,
 };
 
@@ -28,6 +28,7 @@ impl Cartridge {
         let cart = Cartridge {
             mapper: match mapper {
                 0 => Box::new(Nrom::new(rom)),
+                2 => Box::new(Uxrom::new(rom)),
                 _ => return Err(format!("Mapper {} is not supported", mapper)),
             },
         };
