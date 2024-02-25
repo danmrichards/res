@@ -1,6 +1,8 @@
+mod mmc1;
 mod nrom;
 mod uxrom;
 
+pub use mmc1::MMC1;
 pub use nrom::Nrom;
 pub use uxrom::Uxrom;
 

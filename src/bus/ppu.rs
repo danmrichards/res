@@ -44,19 +44,25 @@ impl PPUBus {
     ///   [ a ] [ b ]
     fn mirror_vram_addr(&self, addr: u16) -> u16 {
         // Mirror down 0x3000-0x3EFF to 0x2000 - 0x2EFF
-        let mirrored_vram = addr & 0b1011111_1111111;
+        let mirrored_vram = addr & 0x2FFF;
 
         // To VRAM vector.
         let vram_index = mirrored_vram - 0x2000;
         let name_table = vram_index / 0x400;
 
-        let mirroring = self.cart.borrow().mirroring();
-        match (mirroring, name_table) {
-            (Mirroring::Vertical, 2) | (Mirroring::Vertical, 3) => vram_index - 0x800,
-            (Mirroring::Horizontal, 2) => vram_index - 0x400,
-            (Mirroring::Horizontal, 1) => vram_index - 0x400,
-            (Mirroring::Horizontal, 3) => vram_index - 0x800,
-            _ => vram_index,
+        match self.cart.borrow().mirroring() {
+            Mirroring::Vertical => match name_table {
+                2 | 3 => vram_index - (0x400 * 2),
+                _ => vram_index,
+            },
+            Mirroring::Horizontal => match name_table {
+                1 | 2 => vram_index - 0x400,
+                3 => vram_index - (0x400 * 2),
+                _ => vram_index,
+            },
+            Mirroring::SingleScreenLo => vram_index & 0x3FF,
+            Mirroring::SingleScreenHi => (vram_index & 0x3FF) + 0x400,
+            Mirroring::FourScreen => vram_index,
         }
     }
 }

@@ -1,5 +1,5 @@
 use crate::{
-    mapper::{Mapper, Nrom, Uxrom},
+    mapper::{Mapper, Nrom, Uxrom, MMC1},
     rom::Rom,
 };
 
@@ -8,6 +8,8 @@ use crate::{
 pub enum Mirroring {
     Vertical,
     Horizontal,
+    SingleScreenLo,
+    SingleScreenHi,
     FourScreen,
 }
 
@@ -28,6 +30,7 @@ impl Cartridge {
         let cart = Cartridge {
             mapper: match mapper {
                 0 => Box::new(Nrom::new(rom)),
+                1 => Box::new(MMC1::new(rom)),
                 2 => Box::new(Uxrom::new(rom)),
                 _ => return Err(format!("Mapper {} is not supported", mapper)),
             },
