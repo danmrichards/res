@@ -644,7 +644,11 @@ impl<'a> NesPpu<'a> {
                         (false, false) | (true, true) => (self.oam2_data[i].id & 0xFE) + 1,
                     };
                     let row = match flipped_v {
-                        true => ((7 - (scanline - self.oam2_data[i].y)) & 0x7) as u16,
+                        true => {
+                            7_u16.wrapping_sub(scanline.wrapping_sub(self.oam2_data[i].y) as u16)
+                                & 0x7
+                        }
+
                         false => ((scanline - self.oam2_data[i].y) & 0x7) as u16,
                     };
 

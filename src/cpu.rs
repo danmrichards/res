@@ -143,8 +143,6 @@ pub struct Cpu<'a> {
     /// Handles data read/write, interrupts, memory mapping and PPU/CPU clock
     /// cycles.
     pub bus: SystemBus<'a>,
-
-    prev_opcode: String,
 }
 
 impl Memory for Cpu<'_> {
@@ -334,8 +332,6 @@ impl<'a> Cpu<'a> {
             self.interrupt(interrupt::NMI);
         }
 
-        // println!("prev opcode: {} pc: {}", self.prev_opcode, self.pc);
-
         // Get the opcode at the program counter.
         let code = self.mem_read_byte(self.pc);
         self.pc += 1;
@@ -345,8 +341,6 @@ impl<'a> Cpu<'a> {
         let opcode = *OPCODES
             .get(&code)
             .unwrap_or_else(|| panic!("OpCode {:x} is not recognized", code));
-
-        // self.prev_opcode = opcode.mnemonic.to_string();
 
         match opcode.code {
             // Official opcodes.
