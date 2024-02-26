@@ -1,6 +1,7 @@
 use core::panic;
 
-use crate::{bus::SystemBus, instructions::OPCODES};
+use crate::bus::SystemBus;
+use crate::instructions::OPCODES;
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
