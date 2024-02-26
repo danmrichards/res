@@ -70,20 +70,20 @@ pub trait Memory {
     /// Writes the data at the given address in memory.
     fn mem_write_byte(&mut self, addr: u16, data: u8);
 
-    /// Returns a word from memory, merged from the two bytes at pos and pos + 1.
-    fn mem_read_word(&mut self, pos: u16) -> u16 {
-        let lo = self.mem_read_byte(pos);
-        let hi = self.mem_read_byte(pos + 1);
+    /// Returns a word from memory, merged from the two bytes at addr and addr + 1.
+    fn mem_read_word(&mut self, addr: u16) -> u16 {
+        let lo = self.mem_read_byte(addr);
+        let hi = self.mem_read_byte(addr.wrapping_add(1));
 
         u16::from_le_bytes([lo, hi])
     }
 
-    /// Writes two bytes to memory, split from the data word, as pos and pos + 1.
-    fn mem_write_word(&mut self, pos: u16, data: u16) {
+    /// Writes two bytes to memory, split from the data word, as addr and addr + 1.
+    fn mem_write_word(&mut self, addr: u16, data: u16) {
         let bytes = data.to_le_bytes();
 
-        self.mem_write_byte(pos, bytes[0]);
-        self.mem_write_byte(pos + 1, bytes[1]);
+        self.mem_write_byte(addr, bytes[0]);
+        self.mem_write_byte(addr + 1, bytes[1]);
     }
 }
 
@@ -157,14 +157,14 @@ impl Memory for Cpu<'_> {
         self.bus.mem_write_byte(addr, data)
     }
 
-    /// Returns a word from memory, merged from the two bytes at pos and pos + 1.
-    fn mem_read_word(&mut self, pos: u16) -> u16 {
-        self.bus.mem_read_word(pos)
+    /// Returns a word from memory, merged from the two bytes at addr and addr + 1.
+    fn mem_read_word(&mut self, addr: u16) -> u16 {
+        self.bus.mem_read_word(addr)
     }
 
-    /// Writes two bytes to memory, split from the data word, as pos and pos + 1.
-    fn mem_write_word(&mut self, pos: u16, data: u16) {
-        self.bus.mem_write_word(pos, data)
+    /// Writes two bytes to memory, split from the data word, as addr and addr + 1.
+    fn mem_write_word(&mut self, addr: u16, data: u16) {
+        self.bus.mem_write_word(addr, data)
     }
 }
 

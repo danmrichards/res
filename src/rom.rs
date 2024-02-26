@@ -204,9 +204,9 @@ pub mod tests {
         // Set the mirroring bit in flags_6 if one is provided.
         if let Some(m) = mirroring {
             match m {
-                Mirroring::Horizontal => {}
                 Mirroring::Vertical => flags_6 ^= 0x1,
                 Mirroring::FourScreen => flags_6 ^= 0x8,
+                _ => {}
             }
         }
 
