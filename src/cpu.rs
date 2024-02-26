@@ -199,7 +199,6 @@ impl<'a> Cpu<'a> {
             pc: 0,
             sp: STACK_RESET,
             bus,
-            prev_opcode: String::new(),
         }
     }
 
@@ -344,9 +343,7 @@ impl<'a> Cpu<'a> {
 
         match opcode.code {
             // Official opcodes.
-            0x00 => {
-                return true;
-            }
+            0x00 => return true,
 
             // ADC.
             0x69 | 0x65 | 0x75 | 0x6D | 0x7D | 0x79 | 0x61 | 0x71 => {
