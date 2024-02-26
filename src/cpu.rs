@@ -1,7 +1,6 @@
 use core::panic;
 
-use crate::bus::SystemBus;
-use crate::instructions::OPCODES;
+use crate::{bus::SystemBus, instructions::OPCODES};
 
 #[derive(Debug)]
 #[allow(non_camel_case_types)]
@@ -70,20 +69,20 @@ pub trait Memory {
     /// Writes the data at the given address in memory.
     fn mem_write_byte(&mut self, addr: u16, data: u8);
 
-    /// Returns a word from memory, merged from the two bytes at pos and pos + 1.
-    fn mem_read_word(&mut self, pos: u16) -> u16 {
-        let lo = self.mem_read_byte(pos);
-        let hi = self.mem_read_byte(pos + 1);
+    /// Returns a word from memory, merged from the two bytes at addr and addr + 1.
+    fn mem_read_word(&mut self, addr: u16) -> u16 {
+        let lo = self.mem_read_byte(addr);
+        let hi = self.mem_read_byte(addr.wrapping_add(1));
 
         u16::from_le_bytes([lo, hi])
     }
 
-    /// Writes two bytes to memory, split from the data word, as pos and pos + 1.
-    fn mem_write_word(&mut self, pos: u16, data: u16) {
+    /// Writes two bytes to memory, split from the data word, as addr and addr + 1.
+    fn mem_write_word(&mut self, addr: u16, data: u16) {
         let bytes = data.to_le_bytes();
 
-        self.mem_write_byte(pos, bytes[0]);
-        self.mem_write_byte(pos + 1, bytes[1]);
+        self.mem_write_byte(addr, bytes[0]);
+        self.mem_write_byte(addr + 1, bytes[1]);
     }
 }
 
@@ -144,6 +143,8 @@ pub struct Cpu<'a> {
     /// Handles data read/write, interrupts, memory mapping and PPU/CPU clock
     /// cycles.
     pub bus: SystemBus<'a>,
+
+    prev_opcode: String,
 }
 
 impl Memory for Cpu<'_> {
@@ -157,14 +158,14 @@ impl Memory for Cpu<'_> {
         self.bus.mem_write_byte(addr, data)
     }
 
-    /// Returns a word from memory, merged from the two bytes at pos and pos + 1.
-    fn mem_read_word(&mut self, pos: u16) -> u16 {
-        self.bus.mem_read_word(pos)
+    /// Returns a word from memory, merged from the two bytes at addr and addr + 1.
+    fn mem_read_word(&mut self, addr: u16) -> u16 {
+        self.bus.mem_read_word(addr)
     }
 
-    /// Writes two bytes to memory, split from the data word, as pos and pos + 1.
-    fn mem_write_word(&mut self, pos: u16, data: u16) {
-        self.bus.mem_write_word(pos, data)
+    /// Writes two bytes to memory, split from the data word, as addr and addr + 1.
+    fn mem_write_word(&mut self, addr: u16, data: u16) {
+        self.bus.mem_write_word(addr, data)
     }
 }
 
@@ -200,6 +201,7 @@ impl<'a> Cpu<'a> {
             pc: 0,
             sp: STACK_RESET,
             bus,
+            prev_opcode: String::new(),
         }
     }
 
@@ -332,6 +334,8 @@ impl<'a> Cpu<'a> {
             self.interrupt(interrupt::NMI);
         }
 
+        // println!("prev opcode: {} pc: {}", self.prev_opcode, self.pc);
+
         // Get the opcode at the program counter.
         let code = self.mem_read_byte(self.pc);
         self.pc += 1;
@@ -342,9 +346,13 @@ impl<'a> Cpu<'a> {
             .get(&code)
             .unwrap_or_else(|| panic!("OpCode {:x} is not recognized", code));
 
+        // self.prev_opcode = opcode.mnemonic.to_string();
+
         match opcode.code {
             // Official opcodes.
-            0x00 => return true,
+            0x00 => {
+                return true;
+            }
 
             // ADC.
             0x69 | 0x65 | 0x75 | 0x6D | 0x7D | 0x79 | 0x61 | 0x71 => {

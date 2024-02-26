@@ -46,6 +46,8 @@ pub struct MMC1 {
 
 impl MMC1 {
     pub fn new(rom: Rom) -> Self {
+        let prg_hi = (rom.header.prg_size() - 1) as u8;
+
         MMC1 {
             rom,
 
@@ -53,7 +55,7 @@ impl MMC1 {
             chr_hi: 0,
             chr_8k: 0,
             prg_lo: 0,
-            prg_hi: 0,
+            prg_hi,
             prg_32k: 0,
 
             control: 0x0C,
@@ -77,7 +79,7 @@ impl Mapper for MMC1 {
             0x8000..=0xFFFF => {
                 // Switch PRG ROM bank based on the control register.
                 let index = if self.control & 0x8 != 0 {
-                    if addr <= 0xBFFF {
+                    if addr >= 0x8000 && addr <= 0xBFFF {
                         self.prg_lo as usize * 0x4000 + (addr & 0x3FFF) as usize
                     } else {
                         self.prg_hi as usize * 0x4000 + (addr & 0x3FFF) as usize
